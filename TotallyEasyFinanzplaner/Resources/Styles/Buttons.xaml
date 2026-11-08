@@ -1,0 +1,164 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:local="clr-namespace:TotallyEasyFinanzplaner">
+    <!--
+        Buttons.
+        Symbol + Text: Style="{StaticResource IconButton}" local:Ui.Icon="&#xE74D;" Content="Löschen"
+    -->
+
+    <!-- ================================================================ Inhalt: Symbol + Text -->
+    <!-- Zeigt local:Ui.Icon des Buttons links neben dem Text; ohne Symbol nur den Text -->
+    <DataTemplate x:Key="IconLabelTemplate">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="Glyph" Style="{StaticResource Icon}" FontSize="12" Margin="0,0,7,0"
+                       Text="{Binding Path=(local:Ui.Icon), RelativeSource={RelativeSource AncestorType=ContentControl}}"/>
+            <TextBlock Text="{Binding}"/>
+        </StackPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Path=(local:Ui.Icon), RelativeSource={RelativeSource AncestorType=ContentControl}}"
+                         Value="{x:Null}">
+                <Setter TargetName="Glyph" Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- Kleineres Symbol mit etwas mehr Abstand (für den Akzent-Button) -->
+    <DataTemplate x:Key="PrimaryIconLabelTemplate">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Icon}" FontSize="11" Margin="0,0,8,0"
+                       Text="{Binding Path=(local:Ui.Icon), RelativeSource={RelativeSource AncestorType=ContentControl}}"/>
+            <TextBlock Text="{Binding}"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- Symbol in fester Breite, damit die Texte untereinander bündig sind (Navigation) -->
+    <DataTemplate x:Key="MenuIconLabelTemplate">
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Icon}" Width="18" Margin="0,0,12,0"
+                       Text="{Binding Path=(local:Ui.Icon), RelativeSource={RelativeSource AncestorType=ContentControl}}"/>
+            <TextBlock Text="{Binding}"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- ================================================================ Standard -->
+    <!-- Standard-Button: Fluent-Optik mit etwas Abstand -->
+    <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="ContentTemplate" Value="{StaticResource IconLabelTemplate}"/>
+    </Style>
+
+    <!-- ================================================================ Akzent -->
+    <!-- Primärer Button (Akzentfarbe) -->
+    <Style x:Key="PrimaryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PrimaryIconButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+        <Setter Property="ContentTemplate" Value="{StaticResource PrimaryIconLabelTemplate}"/>
+    </Style>
+
+    <!-- ================================================================ Ohne Rahmen -->
+    <!-- Dezenter Button ohne Rahmen (Pfeile, Symbole) -->
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Margin" Value="0,0,4,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource LineBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Pfeil zum Blättern (Monat vor / zurück); Inhalt: ein Symbol -->
+    <Style x:Key="PagerButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Padding" Value="8"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+        <Setter Property="FontSize" Value="12"/>
+    </Style>
+
+    <!-- Textlink in Akzentfarbe, optional mit Symbol -->
+    <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="ContentTemplate" Value="{StaticResource IconLabelTemplate}"/>
+    </Style>
+
+    <!-- ================================================================ Dunkle Navigationsleiste -->
+    <!-- Button auf der dunklen Navigationsfläche -->
+    <Style x:Key="BrandButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Foreground" Value="#CBD5E1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#22FFFFFF"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#33FFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Aktion in der Navigationsleiste (CSV-Export, Speicherort) – bündig mit den Navigationseinträgen -->
+    <Style x:Key="BrandMenuButton" TargetType="Button" BasedOn="{StaticResource BrandButton}">
+        <Setter Property="Margin" Value="12,1"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="ContentTemplate" Value="{StaticResource MenuIconLabelTemplate}"/>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,27 @@
+﻿<Application x:Class="TotallyEasyFinanzplaner.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--
+                    Die Reihenfolge ist wichtig:
+                    [0] und [1] tauscht der ThemeManager beim Wechsel Hell/Dunkel aus.
+                    Die Styles bauen aufeinander auf und stehen deshalb in dieser Reihenfolge.
+                -->
+                <!-- [0] Windows-11-Fluent-Design für alle Standard-Steuerelemente -->
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.Light.xaml"/>
+                <!-- [1] Eigene Farbpalette (Resources/Themes/Light.xaml oder Dark.xaml) -->
+                <ResourceDictionary Source="Resources/Themes/Light.xaml"/>
+
+                <!-- Styles -->
+                <ResourceDictionary Source="Resources/Styles/Typography.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Buttons.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Navigation.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Containers.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Tables.xaml"/>
+                <ResourceDictionary Source="Resources/Styles/Windows.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

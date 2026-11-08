@@ -1,0 +1,26 @@
+﻿<!--
+    Meldungsfenster im App-Design (Ersatz für MessageBox).
+    Symbol, Farben und Buttons setzt MessageDialog.xaml.cs je nach MessageBoxImage / MessageBoxButton.
+-->
+<Window x:Class="TotallyEasyFinanzplaner.MessageDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" SizeToContent="WidthAndHeight" MinWidth="400" MaxWidth="580">
+    <DockPanel>
+        <!-- ============================================================ Fußleiste (Buttons aus dem Code) -->
+        <Border Style="{StaticResource DialogFooter}">
+            <StackPanel x:Name="ButtonPanel" Style="{StaticResource DialogButtons}"/>
+        </Border>
+
+        <!-- ============================================================ Meldung -->
+        <DockPanel Style="{StaticResource DialogContent}" Margin="24,22,24,22">
+            <Border x:Name="IconBorder" Style="{StaticResource DialogBadge}" Margin="0,0,16,0">
+                <TextBlock x:Name="IconGlyph" Style="{StaticResource DialogBadgeGlyph}" FontSize="18"/>
+            </Border>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="HeaderText" Style="{StaticResource DialogTitle}" FontSize="16" Margin="0,0,0,6"/>
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="20" MaxWidth="460" HorizontalAlignment="Left"/>
+            </StackPanel>
+        </DockPanel>
+    </DockPanel>
+</Window>

@@ -1,0 +1,24 @@
+﻿<!-- Einfache Texteingabe (z. B. Kategorie anlegen / umbenennen); Prüfung über den validate-Callback -->
+<Window x:Class="TotallyEasyFinanzplaner.TextPromptDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource DialogWindow}" WindowStartupLocation="CenterOwner" Width="420">
+    <DockPanel>
+        <!-- ============================================================ Fußleiste -->
+        <Border Style="{StaticResource DialogFooter}">
+            <StackPanel Style="{StaticResource DialogButtons}">
+                <Button Style="{StaticResource DialogButton}" Content="Abbrechen" IsCancel="True"/>
+                <Button x:Name="OkButton" Style="{StaticResource DialogPrimaryButton}" Content="OK" IsDefault="True"
+                        Click="Ok_Click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ============================================================ Eingabe -->
+        <StackPanel Style="{StaticResource DialogContent}">
+            <TextBlock x:Name="HeaderText" Style="{StaticResource DialogTitle}" Margin="0,0,0,12"/>
+            <TextBlock x:Name="LabelText" Style="{StaticResource FieldLabel}" TextWrapping="Wrap"/>
+            <TextBox x:Name="InputBox"/>
+            <TextBlock x:Name="ErrorText" Style="{StaticResource ErrorText}" Margin="0,6,0,0"/>
+        </StackPanel>
+    </DockPanel>
+</Window>
