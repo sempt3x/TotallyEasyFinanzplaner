@@ -286,24 +286,37 @@ public partial class MainWindow
         }
         UpdatePlanUi();
 
-        var text = $"„{_doc.Name}“ ist jetzt mit AES-256 verschlüsselt. Beim nächsten Öffnen wird das Passwort abgefragt.";
         var plainBackups = DataStore.FindBackups(_doc.FilePath).Where(b => !PlanCrypto.IsEncryptedFile(b)).ToList();
-        if (plainBackups.Count == 0)
+        OfferDeleteBackups(
+            $"„{_doc.Name}“ ist jetzt mit AES-256 verschlüsselt. Beim nächsten Öffnen wird das Passwort abgefragt.",
+            "Verschlüsselt", plainBackups,
+            $"Im selben Ordner liegen noch {plainBackups.Count} unverschlüsselte Sicherungskopie(n) dieses Plans " +
+            "(angelegt bei früheren Formatumstellungen):",
+            "Sollen diese gelöscht werden, damit die Daten nirgends mehr lesbar herumliegen?",
+            "unverschlüsselte Sicherung(en) gelöscht");
+    }
+
+    /// <summary>
+    /// Zeigt <paramref name="text"/> an. Gibt es <paramref name="backups"/>, wird zusätzlich angeboten, sie zu löschen.
+    /// </summary>
+    private void OfferDeleteBackups(string text, string title, IReadOnlyList<string> backups,
+                                    string listIntro, string question, string deletedStatus)
+    {
+        if (backups.Count == 0)
         {
-            MessageDialog.Show(this, text, "Verschlüsselt", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageDialog.Show(this, text, title, MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var answer = MessageDialog.Show(this,
-            text + $"\n\nIm selben Ordner liegen noch {plainBackups.Count} unverschlüsselte Sicherungskopie(n) dieses Plans " +
-            "(angelegt bei früheren Formatumstellungen):\n\n" +
-            string.Join("\n", plainBackups.Select(b => "• " + Path.GetFileName(b))) +
-            "\n\nSollen diese gelöscht werden, damit die Daten nirgends mehr lesbar herumliegen?",
-            "Verschlüsselt", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            text + "\n\n" + listIntro + "\n\n" +
+            string.Join("\n", backups.Select(b => "• " + Path.GetFileName(b))) +
+            "\n\n" + question,
+            title, MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (answer != MessageBoxResult.Yes) return;
 
         var failed = new List<string>();
-        foreach (var b in plainBackups)
+        foreach (var b in backups)
         {
             try { File.Delete(b); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { failed.Add(Path.GetFileName(b)); }
@@ -312,7 +325,7 @@ public partial class MainWindow
             MessageDialog.Show(this, "Folgende Dateien konnten nicht gelöscht werden:\n\n" + string.Join("\n", failed),
                 "Sicherungskopien", MessageBoxButton.OK, MessageBoxImage.Warning);
         else
-            StatusSaved.Text = $"{plainBackups.Count} unverschlüsselte Sicherung(en) gelöscht";
+            StatusSaved.Text = $"{backups.Count} {deletedStatus}";
     }
 
     private async void ChangePassword()
@@ -329,8 +342,17 @@ public partial class MainWindow
             return;
         }
         UpdatePlanUi();
-        MessageDialog.Show(this, $"Das Passwort für „{_doc.Name}“ wurde geändert.", "Passwort geändert",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+
+        // Sicherungskopien sind noch mit dem alten Passwort verschlüsselt (oder gar nicht) – wer das alte
+        // Passwort kennt, könnte sie weiterhin öffnen
+        var backups = DataStore.FindBackups(_doc.FilePath);
+        OfferDeleteBackups(
+            $"Das Passwort für „{_doc.Name}“ wurde geändert.",
+            "Passwort geändert", backups,
+            $"Im selben Ordner liegen noch {backups.Count} Sicherungskopie(n) dieses Plans, die mit dem ALTEN Passwort " +
+            "(oder gar nicht) verschlüsselt sind:",
+            "Sollen diese gelöscht werden, damit sich der Plan nur noch mit dem neuen Passwort öffnen lässt?",
+            "alte Sicherung(en) gelöscht");
     }
 
     private void RemovePassword()

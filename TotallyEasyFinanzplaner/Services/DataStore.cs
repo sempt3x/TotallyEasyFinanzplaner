@@ -99,6 +99,9 @@ public static class DataStore
             return created;
         }
 
+        if (new FileInfo(path).Length > Limits.MaxFileBytes)
+            throw new InvalidDataException($"Die Datei ist zu groß für einen Finanzplan (über {Limits.MaxFileBytes / 1024 / 1024} MB).");
+
         var bytes = File.ReadAllBytes(path);
         PlanKey? key = null;
         if (PlanCrypto.IsEncrypted(bytes))
@@ -199,6 +202,16 @@ public static class DataStore
                 throw new InvalidDataException("Die Datei wurde mit einer neueren Programmversion erstellt.");
             data.Entries ??= [];
             data.Categories ??= [];
+
+            // Unplausible Werte (von Hand bearbeitet oder manipuliert) würden sonst das Programm lahmlegen
+            // (Prognose über Jahrtausende) oder beim Rechnen zum Überlauf und Absturz führen
+            if (!Limits.IsValidDate(data.StartDate))
+                throw new InvalidDataException($"Der Stichtag {data.StartDate:dd.MM.yyyy} liegt außerhalb von {Limits.DateRangeText}.");
+            if (Math.Abs(data.StartBalance) > Limits.MaxAmount)
+                throw new InvalidDataException("Der Startsaldo ist unplausibel groß.");
+            if (data.Entries.Count > Limits.MaxEntries)
+                throw new InvalidDataException($"Die Datei enthält mehr als {Limits.MaxEntries:N0} Buchungen.");
+
             foreach (var e in data.Entries)
             {
                 e.SkippedDates ??= [];
@@ -206,6 +219,14 @@ public static class DataStore
                 // Unbekannte Werte (z. B. von Hand bearbeitet) würden sonst erst beim Rechnen abstürzen
                 if (!Enum.IsDefined(e.Type) || !Enum.IsDefined(e.Recurrence) || !Enum.IsDefined(e.Weekend))
                     throw new InvalidDataException($"Der Eintrag „{e.Name}“ enthält eine unbekannte Art, Wiederholung oder Wochenendregel.");
+                if (!Limits.IsValidDate(e.StartDate) || e.EndDate is { } end && !Limits.IsValidDate(end))
+                    throw new InvalidDataException($"Der Eintrag „{e.Name}“ enthält ein Datum außerhalb von {Limits.DateRangeText}.");
+                if (Math.Abs(e.Amount) > Limits.MaxAmount)
+                    throw new InvalidDataException($"Der Betrag von „{e.Name}“ ist unplausibel groß.");
+                if (e.SkippedDates.Count > Limits.MaxSkippedDates)
+                    throw new InvalidDataException($"Der Eintrag „{e.Name}“ hat zu viele ausgesetzte Termine.");
+                // Ausgesetzte Termine außerhalb des Bereichs sind harmlos (z. B. im Kalender weit vorgeblättert) – verwerfen
+                e.SkippedDates.RemoveAll(s => !Limits.IsValidDate(s));
                 if (e.DayOfMonth is { } day) e.DayOfMonth = Math.Clamp(day, 1, 31);
                 e.Amount = Math.Abs(e.Amount);
                 e.NormalizeSkippedDates(); // ältere Dateien: verschobenen Tag → planmäßigen Termin

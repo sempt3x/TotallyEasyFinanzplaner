@@ -569,6 +569,15 @@ public partial class MainWindow : Window
     private void StartDatePicker_SelectedDateChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppressEvents || StartDatePicker.SelectedDate is not { } d) return;
+        if (!Limits.IsValidDate(d))
+        {
+            MessageDialog.Show(this, $"Der Stichtag muss zwischen {Limits.DateRangeText} liegen.", "Ungültiges Datum",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            _suppressEvents = true;
+            StartDatePicker.SelectedDate = ToDateTime(_data.StartDate);
+            _suppressEvents = false;
+            return;
+        }
         _data.StartDate = DateOnly.FromDateTime(d);
         SaveAndRefresh();
     }
@@ -591,7 +600,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            MessageDialog.Show(this, "Bitte einen gültigen Betrag eingeben, z. B. 1.234,56", "Ungültiger Betrag",
+            MessageDialog.Show(this, $"Bitte einen gültigen Betrag eingeben, z. B. 1.234,56 (höchstens {Money.Plain(Limits.MaxAmount)}).", "Ungültiger Betrag",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             StartBalanceBox.Text = Money.Plain(_data.StartBalance);
         }

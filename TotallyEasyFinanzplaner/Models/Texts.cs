@@ -59,7 +59,7 @@ public static partial class Money
     public static string FormatSigned(decimal v) => (v > 0 ? "+" : "") + v.ToString("C2", De);
     public static string Plain(decimal v) => v.ToString("N2", De);
 
-    /// <summary>Akzeptiert "1.234,56", "1234,56", "9.99", "12 €" usw.</summary>
+    /// <summary>Akzeptiert "1.234,56", "1234,56", "9.99", "12 €" usw. – betragsmäßig höchstens <see cref="Limits.MaxAmount"/>.</summary>
     public static bool TryParse(string? text, out decimal value)
     {
         var s = (text ?? "").Replace("€", "").Replace(" ", "").Replace(" ", "").Trim();
@@ -74,7 +74,7 @@ public static partial class Money
         var intPart = s.Split(',')[0].TrimStart('+', '-');
         if (intPart.Contains('.') && !ThousandsGrouped().IsMatch(intPart)) return false;
 
-        return decimal.TryParse(s, NumberStyles.Number, De, out value);
+        return decimal.TryParse(s, NumberStyles.Number, De, out value) && Math.Abs(value) <= Limits.MaxAmount;
     }
 
     [System.Text.RegularExpressions.GeneratedRegex(@"^\d{1,3}(\.\d{3})+$")]

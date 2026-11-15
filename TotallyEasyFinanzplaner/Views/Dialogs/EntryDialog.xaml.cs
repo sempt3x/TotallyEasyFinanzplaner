@@ -129,15 +129,18 @@ public partial class EntryDialog : Window
 
         if (name.Length == 0) error = "Bitte eine Bezeichnung eingeben.";
         else if (!Money.TryParse(AmountBox.Text, out var amount) || amount <= 0)
-            error = "Bitte einen positiven Betrag eingeben (z. B. 49,99). Ob Einnahme oder Ausgabe, wird über \"Art\" gewählt.";
+            error = "Bitte einen positiven Betrag eingeben (z. B. 49,99), höchstens " + Money.Plain(Limits.MaxAmount) + ". " +
+                    "Ob Einnahme oder Ausgabe, wird über \"Art\" gewählt.";
         else if (SelectedType == EntryType.Gehalt && string.IsNullOrWhiteSpace(JobBox.Text))
             error = "Bitte den Arbeitgeber bzw. Job angeben, zu dem dieses Gehalt gehört.";
         else if (StartPicker.SelectedDate is not { } start) error = "Bitte ein Datum wählen.";
+        else if (!Limits.IsValidDate(start)) error = $"Das Datum muss zwischen {Limits.DateRangeText} liegen.";
         else
         {
             if (rec != Recurrence.Einmalig && HasEndBox.IsChecked == true)
             {
                 if (EndPicker.SelectedDate is not { } endDt) error = "Bitte ein Enddatum wählen oder den Haken entfernen.";
+                else if (!Limits.IsValidDate(endDt)) error = $"Das Enddatum muss zwischen {Limits.DateRangeText} liegen.";
                 else if (endDt.Date < start.Date) error = "Das Enddatum liegt vor dem Datum \"gültig ab\".";
                 else
                 {
