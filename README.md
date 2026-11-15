@@ -116,6 +116,20 @@ Gehalt? Was bleibt jeden Monat übrig?
 
 ## Installation
 
+### Download (empfohlen)
+
+Die fertige Version gibt es unter **[Releases](../../releases/latest)**:
+
+| Datei | Beschreibung |
+|---|---|
+| `TotallyEasyFinanzplaner-<Version>-win-x64.exe` | Läuft sofort ohne Installation. Einfach herunterladen und starten. |
+| `TotallyEasyFinanzplaner-<Version>-win-x64-framework-dependent.zip` | Kleine Variante, benötigt die [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0). |
+
+> [!NOTE]
+> Die `.exe` ist nicht digital signiert. Windows SmartScreen kann deshalb beim ersten Start warnen.
+> Über **Weitere Informationen → Trotzdem ausführen** lässt sich das Programm starten. Die Prüfsummen in
+> `SHA256SUMS.txt` bestätigen, dass der Download unverändert ist.
+
 ### Aus dem Quellcode starten
 
 ```powershell

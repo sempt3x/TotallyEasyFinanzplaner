@@ -1,0 +1,103 @@
+# Erstellt automatisch ein GitHub-Release mit fertiger .exe, sobald ein Versions-Tag gepusht wird:
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# Tags mit Bindestrich (z. B. v1.1.0-beta.1) werden als Vorabversion (Pre-release) markiert.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write   # nötig, um das Release anzulegen und Dateien hochzuladen
+
+env:
+  PROJECT: TotallyEasyFinanzplaner/TotallyEasyFinanzplaner.csproj
+  APP: TotallyEasyFinanzplaner
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Quellcode auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET 10 SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Version aus dem Tag ermitteln
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-').ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      - name: Eigenständige Version bauen (ohne .NET-Installation lauffähig)
+        shell: pwsh
+        run: >
+          dotnet publish $env:PROJECT -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:Version=${{ steps.version.outputs.version }}
+          -o out/standalone
+
+      - name: Kompakte Version bauen (benötigt .NET 10 Desktop Runtime)
+        shell: pwsh
+        run: >
+          dotnet publish $env:PROJECT -c Release -r win-x64
+          --self-contained false
+          -p:PublishSingleFile=true
+          -p:DebugType=None
+          -p:Version=${{ steps.version.outputs.version }}
+          -o out/framework
+
+      - name: Release-Dateien zusammenstellen
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "out/standalone/$env:APP.exe" "dist/$env:APP-$v-win-x64.exe"
+          Compress-Archive -Path "out/framework/*", "LICENSE", "README.md", "THIRD-PARTY-NOTICES.md" `
+                           -DestinationPath "dist/$env:APP-$v-win-x64-framework-dependent.zip"
+          # Prüfsummen, damit Nutzer den Download verifizieren können
+          Get-ChildItem dist -File | ForEach-Object {
+              "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content dist/SHA256SUMS.txt -Encoding utf8
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: GitHub-Release erstellen
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          ## Download
+
+          | Datei | Für wen |
+          |---|---|
+          | **$env:APP-${{ steps.version.outputs.version }}-win-x64.exe** | Empfohlen: läuft sofort, keine Installation nötig (~130 MB) |
+          | $env:APP-${{ steps.version.outputs.version }}-win-x64-framework-dependent.zip | Klein (~0,5 MB), benötigt die [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) |
+          | SHA256SUMS.txt | Prüfsummen zum Verifizieren der Downloads |
+
+          > Die .exe ist nicht digital signiert. Windows SmartScreen zeigt beim ersten Start ggf. eine Warnung –
+          > über **Weitere Informationen → Trotzdem ausführen** lässt sich das Programm starten.
+
+          "@
+          # Dateien einzeln übergeben – PowerShell erweitert "dist/*" für externe Programme nicht
+          $files = (Get-ChildItem dist -File).FullName
+          $ghArgs = @("${{ github.ref_name }}") + $files + @(
+                    "--title", "Totally Easy Finanzplaner ${{ steps.version.outputs.version }}",
+                    "--notes", $notes, "--generate-notes")
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $ghArgs += "--prerelease" }
+          gh release create @ghArgs
