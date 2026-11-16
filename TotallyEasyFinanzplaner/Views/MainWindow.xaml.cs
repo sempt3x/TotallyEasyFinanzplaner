@@ -20,6 +20,7 @@ public sealed record UpcomingRow(DayItem Item, decimal? BalanceAfter)
     public string SubText => Item.Date.ToDateTime(TimeOnly.MinValue).ToString("dddd", Money.De) + " · " + Item.SubText;
     public string AmountText => Item.AmountText;
     public bool IsIncome => Item.IsIncome;
+    public PaymentMethod Payment => Item.Payment;
     public string BalanceText => BalanceAfter is { } b ? Money.Format(b) : "";
     public bool BalanceNegative => BalanceAfter < 0;
 }
@@ -367,7 +368,7 @@ public partial class MainWindow : Window
 
         List<Entry> ListOf(EntryType type) => _data.Entries
             .Where(e => e.Type == type && (showFinished || !e.IsFinished))
-            .Where(e => search.Length == 0 || Matches(e.Name) || Matches(e.Note) || (e.IsSalary && Matches(e.Job)) || (e.Type == EntryType.Ausgabe && Matches(e.CategoryName)))
+            .Where(e => search.Length == 0 || Matches(e.Name) || Matches(e.Note) || (e.IsSalary && Matches(e.Job)) || (e.Type == EntryType.Ausgabe && Matches(e.CategoryName)) || (e.Payment is not null && Matches(e.PaymentText)))
             .OrderBy(e => e.IsSalary ? e.JobName : "")
             .ThenBy(e => e.IsOneTime)
             .ThenBy(e => e.IsOneTime ? e.StartDate.DayNumber : e.DueDay)
@@ -669,13 +670,13 @@ public partial class MainWindow : Window
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         }
         var sb = new StringBuilder();
-        sb.AppendLine("Art;Arbeitgeber/Job;Kategorie;Bezeichnung;Betrag;Rhythmus;Fällig;Gültig ab;Endet am;Wochenende;Notiz");
+        sb.AppendLine("Art;Arbeitgeber/Job;Kategorie;Bezeichnung;Betrag;Rhythmus;Fällig;Gültig ab;Endet am;Wochenende;Notiz;Bezahlt über");
         foreach (var x in _data.Entries.OrderByDescending(x => x.Type).ThenBy(x => x.Job).ThenBy(x => x.IsOneTime).ThenBy(x => x.Name))
         {
             sb.AppendJoin(';',
                 Q(x.TypeText), Q(x.IsSalary ? x.JobName : ""), Q(x.Type == EntryType.Ausgabe ? x.CategoryName : ""), Q(x.Name), x.SignedAmount.ToString("0.00", Money.De), Q(x.RecurrenceText),
                 Q(x.DueText), x.StartDate.ToString("dd.MM.yyyy"), x.EndDate?.ToString("dd.MM.yyyy") ?? "",
-                Q(Texts.Of(x.Weekend)), Q(x.Note));
+                Q(Texts.Of(x.Weekend)), Q(x.Note), Q(x.PaymentText));
             sb.AppendLine();
         }
 

@@ -49,6 +49,7 @@ public sealed class DayCell(DayInfo info, bool isCurrentMonth, bool isToday, boo
             else if (IsWeekend) lines.Add("Wochenende – keine Buchungen");
             lines.AddRange(Info.Deferred.Select(i => $"→ {i.Name} wird am {i.Date:dd.MM.} gebucht"));
             lines.AddRange(Info.Items.Select(i => $"{i.AmountText}  {i.Name}{(i.IsOneTime ? " (einmalig)" : "")}" +
+                                                  (i.Payment != PaymentMethod.Konto ? $" – über {Texts.Of(i.Payment)}" : "") +
                                                   (i.IsShifted ? $" – planmäßig {i.Nominal:dd.MM.}" : "")));
             if (Info.Balance is { } b) lines.Add($"Kontostand am Tagesende: {Money.Format(b)}");
             return string.Join(Environment.NewLine, lines);

@@ -82,6 +82,7 @@
                                                Fill="{DynamicResource ExpenseBrush}"/>
                                     <TextBlock x:Name="Amt" DockPanel.Dock="Right" Text="{Binding ShortAmount}" FontSize="11"
                                                Margin="4,0,0,0" Foreground="{DynamicResource ExpenseBrush}"/>
+                                    <local:PaymentIcon DockPanel.Dock="Left" Method="{Binding Payment}" Size="10" Margin="0,0,3,0"/>
                                     <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource CellItemTextBrush}"/>
                                 </DockPanel>
@@ -184,6 +185,14 @@
                     <Setter TargetName="DateText" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Spalte "Bezeichnung": davor ein kleines Symbol für den Zahlungsweg (Konto, Kreditkarte, PayPal …) -->
+        <DataTemplate x:Key="NameCell">
+            <DockPanel VerticalAlignment="Center">
+                <local:PaymentIcon DockPanel.Dock="Left" Method="{Binding PaymentKind}" Size="14" Margin="0,0,7,0"/>
+                <TextBlock Text="{Binding Name}" Style="{StaticResource NameCellText}" ToolTip="{Binding Name}"/>
+            </DockPanel>
         </DataTemplate>
 
         <!-- Spalte "Rhythmus": darunter die Buchungsmonate (vierteljährlich/halbjährlich/jährlich) -->
@@ -503,7 +512,10 @@
                                                                                HorizontalAlignment="Right" Foreground="{DynamicResource MutedBrush}"/>
                                                                 </StackPanel>
                                                                 <StackPanel VerticalAlignment="Center">
-                                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                                    <DockPanel>
+                                                                        <local:PaymentIcon DockPanel.Dock="Left" Method="{Binding Payment}" Size="13" Margin="0,0,6,0"/>
+                                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                                    </DockPanel>
                                                                     <TextBlock Text="{Binding SubText}" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
                                                                 </StackPanel>
                                                             </DockPanel>
@@ -742,7 +754,10 @@
                                                 <TextBlock x:Name="Amt" DockPanel.Dock="Right" Text="{Binding AmountText}" FontWeight="SemiBold"
                                                            VerticalAlignment="Center" Foreground="{DynamicResource ExpenseBrush}"/>
                                                 <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    <DockPanel>
+                                                        <local:PaymentIcon DockPanel.Dock="Left" Method="{Binding Payment}" Size="13" Margin="0,0,6,0"/>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                    </DockPanel>
                                                     <TextBlock Text="{Binding SubText}" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </DockPanel>
@@ -857,8 +872,8 @@
                                             </GroupStyle>
                                         </DataGrid.GroupStyle>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
-                                                                ElementStyle="{StaticResource NameCellText}"/>
+                                            <DataGridTemplateColumn Header="Bezeichnung" SortMemberPath="Name" Width="*" MinWidth="110"
+                                                                    CellTemplate="{StaticResource NameCell}"/>
                                             <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
                                                                 CellTemplate="{StaticResource RhythmCell}"/>
                                             <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
@@ -904,8 +919,8 @@
                                           RowStyle="{StaticResource EntriesRowStyle}"
                                           SelectionChanged="EntryGrid_SelectionChanged" MouseDoubleClick="EditEntry_Click">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
-                                                            ElementStyle="{StaticResource NameCellText}"/>
+                                        <DataGridTemplateColumn Header="Bezeichnung" SortMemberPath="Name" Width="*" MinWidth="110"
+                                                                CellTemplate="{StaticResource NameCell}"/>
                                         <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
                                                                 CellTemplate="{StaticResource RhythmCell}"/>
                                         <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
@@ -968,8 +983,8 @@
                                         </GroupStyle>
                                     </DataGrid.GroupStyle>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
-                                                            ElementStyle="{StaticResource NameCellText}"/>
+                                        <DataGridTemplateColumn Header="Bezeichnung" SortMemberPath="Name" Width="*" MinWidth="110"
+                                                                CellTemplate="{StaticResource NameCell}"/>
                                         <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
                                                                 CellTemplate="{StaticResource RhythmCell}"/>
                                         <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
@@ -1010,8 +1025,8 @@
                                           RowStyle="{StaticResource EntriesRowStyle}"
                                           SelectionChanged="EntryGrid_SelectionChanged" MouseDoubleClick="EditEntry_Click">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
-                                                            ElementStyle="{StaticResource NameCellText}"/>
+                                        <DataGridTemplateColumn Header="Bezeichnung" SortMemberPath="Name" Width="*" MinWidth="110"
+                                                                CellTemplate="{StaticResource NameCell}"/>
                                         <DataGridTextColumn Header="Kategorie" Binding="{Binding CategoryName}" Width="150"
                                                             ElementStyle="{StaticResource MutedCellText}"/>
                                         <DataGridTextColumn Header="Datum" Binding="{Binding DueText}" SortMemberPath="StartDate" Width="114"

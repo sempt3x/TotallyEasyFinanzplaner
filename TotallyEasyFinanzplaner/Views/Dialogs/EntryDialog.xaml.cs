@@ -59,6 +59,8 @@ public partial class EntryDialog : Window
             .Concat((knownCategories ?? []).Where(k => !string.IsNullOrWhiteSpace(k) && !Texts.DefaultCategories.Contains(k)).Distinct().Order())
             .ToList();
         CategoryBox.Text = target.Category ?? "";
+        PaymentBox.ItemsSource = Texts.PaymentOptions;
+        PaymentBox.SelectedValue = target.PaymentKind;
         AmountBox.Text = isNew && target.Amount == 0 ? "" : Money.Plain(target.Amount);
         RecurrenceBox.SelectedValue = target.Recurrence;
         DayBox.ItemsSource = Texts.DayOptions;
@@ -78,6 +80,8 @@ public partial class EntryDialog : Window
     private EntryType SelectedType => TypeBox.SelectedValue is EntryType t ? t : EntryType.Ausgabe;
 
     private Recurrence SelectedRecurrence => RecurrenceBox.SelectedValue is Recurrence r ? r : Recurrence.Monatlich;
+
+    private PaymentMethod SelectedPayment => PaymentBox.SelectedValue is PaymentMethod p ? p : PaymentMethod.Konto;
 
     private WeekendRule SelectedWeekend => WeekendBox.SelectedValue is WeekendRule w ? w : WeekendRule.Verschieben;
 
@@ -132,6 +136,9 @@ public partial class EntryDialog : Window
         EndPicker.IsEnabled = HasEndBox.IsChecked == true;
         JobLabel.Visibility = JobBox.Visibility = SelectedType == EntryType.Gehalt ? Visibility.Visible : Visibility.Collapsed;
         CategoryLabel.Visibility = CategoryBox.Visibility = SelectedType == EntryType.Ausgabe ? Visibility.Visible : Visibility.Collapsed;
+        // Gehalt kommt immer aufs Konto – der Zahlungsweg ist nur bei Ausgaben und sonstigen Einnahmen wählbar
+        PaymentLabel.Visibility = PaymentBox.Visibility = SelectedType == EntryType.Gehalt ? Visibility.Collapsed : Visibility.Visible;
+        PaymentLabel.Text = SelectedType == EntryType.Ausgabe ? "Bezahlt über" : "Eingang über";
         DayLabel.Text = SelectedType == EntryType.Ausgabe ? "Abbuchungstag" : "Eingangstag";
         MonthLabel.Text = SelectedType == EntryType.Ausgabe ? "Abbuchungsmonate" : "Eingangsmonate";
 
@@ -269,6 +276,8 @@ public partial class EntryDialog : Window
                 _target.Category = SelectedType == EntryType.Ausgabe && !string.IsNullOrWhiteSpace(CategoryBox.Text)
                                    && CategoryBox.Text.Trim() != Texts.NoCategory
                     ? CategoryBox.Text.Trim() : null;
+                // Konto = Standard und wird nicht gespeichert (bestehende Buchungen bleiben unverändert)
+                _target.Payment = SelectedType != EntryType.Gehalt && SelectedPayment != PaymentMethod.Konto ? SelectedPayment : null;
                 _target.Amount = amount;
                 _target.Recurrence = rec;
                 _target.StartDate = DateOnly.FromDateTime(start);

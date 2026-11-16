@@ -13,6 +13,7 @@ public sealed record DayItem(Entry Entry, DateOnly Date, DateOnly Nominal)
     public string AmountText => Money.FormatSigned(Signed);
     public string ShortAmount => (Signed > 0 ? "+" : "−") + Money.Plain(Math.Abs(Signed));
     public bool IsSalary => Entry.IsSalary;
+    public PaymentMethod Payment => Entry.PaymentKind;
     /// <summary>Wegen Wochenende/Feiertag auf einen anderen Tag verschoben.</summary>
     public bool IsShifted => Nominal != Date;
     /// <summary>z. B. "Planmäßig 25.12. (Feiertag: 1. Weihnachtstag)" – leer, wenn nicht verschoben.</summary>

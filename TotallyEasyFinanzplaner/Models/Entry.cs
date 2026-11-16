@@ -13,6 +13,13 @@ public enum Recurrence { Einmalig, Monatlich, Vierteljaehrlich, Halbjaehrlich, J
 /// </summary>
 public enum WeekendRule { Keine, Vorziehen, Verschieben }
 
+/// <summary>
+/// Worüber gekauft bzw. bezahlt wurde (z. B. PayPal in 30 Tagen, Kreditkartenabrechnung). Abgebucht wird am Ende
+/// trotzdem vom Konto – die Angabe dient nur der Übersicht. <see cref="Konto"/> = direkt per Überweisung/Lastschrift.
+/// </summary>
+/// <remarks>Gespeichert wird der Name (nicht die Zahl) – die Reihenfolge hier bestimmt nur die Auswahlliste.</remarks>
+public enum PaymentMethod { Konto, Kreditkarte, PayPal, Klarna, Amazon, Ratenkauf, ApplePay, GooglePay }
+
 /// <summary>Eine Einnahme oder Ausgabe – einmalig oder wiederkehrend.</summary>
 public sealed class Entry
 {
@@ -41,12 +48,16 @@ public sealed class Entry
     public string? Job { get; set; }
     /// <summary>Kategorie – nur bei <see cref="EntryType.Ausgabe"/> (z. B. "Versicherungen").</summary>
     public string? Category { get; set; }
+    /// <summary>Zahlungsweg. Null (ältere Pläne, nichts gewählt) = direkt über das Konto; wird dann nicht gespeichert.</summary>
+    public PaymentMethod? Payment { get; set; }
 
     [JsonIgnore] public bool IsIncome => Type != EntryType.Ausgabe;
     [JsonIgnore] public bool IsSalary => Type == EntryType.Gehalt;
     [JsonIgnore] public string JobName => string.IsNullOrWhiteSpace(Job) ? "Ohne Zuordnung" : Job.Trim();
     [JsonIgnore] public string CategoryName => string.IsNullOrWhiteSpace(Category) ? Texts.NoCategory : Category.Trim();
     [JsonIgnore] public string TypeText => Texts.Of(Type);
+    [JsonIgnore] public PaymentMethod PaymentKind => Payment ?? PaymentMethod.Konto;
+    [JsonIgnore] public string PaymentText => Texts.Of(PaymentKind);
     [JsonIgnore] public bool IsOneTime => Recurrence == Recurrence.Einmalig;
     [JsonIgnore] public decimal SignedAmount => IsIncome ? Amount : -Amount;
 

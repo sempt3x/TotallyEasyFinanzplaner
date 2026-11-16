@@ -29,6 +29,23 @@ public static class Texts
         _ => "Ausgabe",
     };
 
+    public static string Of(PaymentMethod p) => p switch
+    {
+        PaymentMethod.Konto => "Bankkonto (Überweisung/Lastschrift)",
+        PaymentMethod.Kreditkarte => "Kreditkarte",
+        PaymentMethod.PayPal => "PayPal",
+        PaymentMethod.Klarna => "Klarna",
+        PaymentMethod.Amazon => "Amazon",
+        PaymentMethod.Ratenkauf => "Ratenkauf / Finanzierung",
+        PaymentMethod.ApplePay => "Apple Pay",
+        PaymentMethod.GooglePay => "Google Pay",
+        _ => p.ToString(),
+    };
+
+    /// <summary>Auswahlliste der Zahlungswege (Bankkonto zuerst = Standard).</summary>
+    public static IReadOnlyList<Option> PaymentOptions { get; } =
+        Enum.GetValues<PaymentMethod>().Select(p => new Option(p, Of(p))).ToList();
+
     public const string NoCategory = "Ohne Kategorie";
 
     /// <summary>Vorschläge für Ausgaben-Kategorien (eigene Kategorien sind jederzeit möglich).</summary>

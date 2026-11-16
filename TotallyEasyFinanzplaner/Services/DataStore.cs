@@ -231,6 +231,8 @@ public static class DataStore
                 e.SkippedDates.RemoveAll(s => !Limits.IsValidDate(s));
                 if (e.DayOfMonth is { } day) e.DayOfMonth = Math.Clamp(day, 1, 31);
                 if (e.DueMonth is { } month) e.DueMonth = Math.Clamp(month, 1, 12);
+                // Zahlungsweg ist reine Anzeige: Unbekanntes oder "Konto" wie "nichts gewählt" behandeln
+                if (e.Payment is { } pay && (!Enum.IsDefined(pay) || pay == PaymentMethod.Konto)) e.Payment = null;
                 e.Amount = Math.Abs(e.Amount);
                 // Ältere Dateien: verschobenen Tag → planmäßigen Termin (mit den Feiertagen dieses Plans rechnen)
                 var activeState = BusinessDays.State;
