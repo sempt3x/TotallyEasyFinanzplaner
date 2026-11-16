@@ -13,7 +13,14 @@ public sealed record DayItem(Entry Entry, DateOnly Date, DateOnly Nominal)
     public string AmountText => Money.FormatSigned(Signed);
     public string ShortAmount => (Signed > 0 ? "+" : "−") + Money.Plain(Math.Abs(Signed));
     public bool IsSalary => Entry.IsSalary;
-    public string SubText => (IsSalary ? $"Gehalt · {Entry.JobName} · " : "")
+    /// <summary>Wegen Wochenende/Feiertag auf einen anderen Tag verschoben.</summary>
+    public bool IsShifted => Nominal != Date;
+    /// <summary>z. B. "Planmäßig 25.12. (Feiertag: 1. Weihnachtstag)" – leer, wenn nicht verschoben.</summary>
+    public string ShiftText => IsShifted
+        ? $"Planmäßig {Nominal:dd.MM.}" + (BusinessDays.Reason(Nominal) is { } r ? $" ({r})" : "")
+        : "";
+    public string SubText => (IsShifted ? ShiftText + " · " : "")
+                             + (IsSalary ? $"Gehalt · {Entry.JobName} · " : "")
                              + (Entry.Type == EntryType.Ausgabe ? $"{Entry.CategoryName} · " : "")
                              + (IsOneTime ? "Einmalzahlung" : Entry.RecurrenceText)
                              + (string.IsNullOrWhiteSpace(Entry.Note) ? "" : " · " + Entry.Note);
@@ -23,6 +30,11 @@ public sealed class DayInfo
 {
     public required DateOnly Date { get; init; }
     public List<DayItem> Items { get; } = [];
+    /// <summary>Buchungen, die planmäßig an diesem Tag wären, wegen Wochenende/Feiertag aber an einem anderen Tag erfolgen.</summary>
+    public List<DayItem> Deferred { get; } = [];
+    /// <summary>Feiertag an diesem Tag (gemäß Bundesland des Plans) oder null.</summary>
+    public string? Holiday => BusinessDays.HolidayName(Date);
+    public bool IsBusinessDay => BusinessDays.IsBusinessDay(Date);
     /// <summary>Kontostand am Tagesende; null vor dem Startdatum.</summary>
     public decimal? Balance { get; set; }
     public decimal Net => Items.Sum(i => i.Signed);
@@ -40,7 +52,11 @@ public static class Forecast
 
         foreach (var entry in data.Entries)
             foreach (var (nominal, actual) in entry.Occurrences(begin, to))
-                days[actual].Items.Add(new DayItem(entry, actual, nominal));
+            {
+                var item = new DayItem(entry, actual, nominal);
+                days[actual].Items.Add(item);
+                if (nominal != actual && days.TryGetValue(nominal, out var planned)) planned.Deferred.Add(item);
+            }
 
         decimal balance = data.StartBalance;
         foreach (var day in days.Values)

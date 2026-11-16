@@ -7,7 +7,10 @@ public enum EntryType { Ausgabe, Einnahme, Gehalt }
 
 public enum Recurrence { Einmalig, Monatlich, Vierteljaehrlich, Halbjaehrlich, Jaehrlich }
 
-/// <summary>Was passiert, wenn ein Termin auf ein Wochenende fällt.</summary>
+/// <summary>
+/// Was passiert, wenn ein Termin auf ein Wochenende oder einen Feiertag fällt. An solchen Tagen wird nie gebucht:
+/// <see cref="Keine"/> (aus älteren Plänen) wirkt deshalb wie <see cref="Verschieben"/> (nächster Werktag).
+/// </summary>
 public enum WeekendRule { Keine, Vorziehen, Verschieben }
 
 /// <summary>Eine Einnahme oder Ausgabe – einmalig oder wiederkehrend.</summary>
@@ -23,6 +26,11 @@ public sealed class Entry
     public DateOnly StartDate { get; set; }
     /// <summary>Abbuchungstag im Monat (1–31, 31 = immer Monatsletzter). Null = Tag aus <see cref="StartDate"/>.</summary>
     public int? DayOfMonth { get; set; }
+    /// <summary>
+    /// Nur vierteljährlich/halbjährlich/jährlich: ein Monat, in dem gebucht wird (1–12, z. B. 2 = Feb/Mai/Aug/Nov bei
+    /// vierteljährlich). Null = Rhythmus richtet sich nach dem Monat von <see cref="StartDate"/> (ältere Pläne).
+    /// </summary>
+    public int? DueMonth { get; set; }
     /// <summary>Letzter möglicher Termin (inklusive). Null = unbegrenzt.</summary>
     public DateOnly? EndDate { get; set; }
     public WeekendRule Weekend { get; set; } = WeekendRule.Keine;
@@ -60,10 +68,18 @@ public sealed class Entry
         _ => 0,
     };
 
+    /// <summary>Erster Buchungsmonat im Jahr (1 … Intervall); bei monatlich und einmalig 1.</summary>
+    [JsonIgnore]
+    public int CycleMonth => IntervalMonths <= 1 ? 1 : ((DueMonth ?? StartDate.Month) - 1) % IntervalMonths + 1;
+
     // ---- Anzeige ----
     [JsonIgnore] public string AmountText => Money.FormatSigned(SignedAmount);
     [JsonIgnore] public string RecurrenceText => Texts.Of(Recurrence);
-    [JsonIgnore] public string DueText => IsOneTime ? StartDate.ToString("dd.MM.yyyy") : Texts.Day(DueDay);
+    /// <summary>Buchungsmonate, z. B. "Feb · Mai · Aug · Nov" – leer bei monatlich und einmalig.</summary>
+    [JsonIgnore] public string MonthsText => Texts.Months(Recurrence, CycleMonth);
+    [JsonIgnore]
+    public string DueText => IsOneTime ? StartDate.ToString("dd.MM.yyyy")
+        : MonthsText.Length > 0 ? $"{Texts.Day(DueDay)} ({MonthsText})" : Texts.Day(DueDay);
     [JsonIgnore]
     public string PeriodText => IsOneTime
         ? ""
@@ -87,14 +103,15 @@ public sealed class Entry
         return StartDate <= last && (EndDate is not { } e || e >= firstOfMonth);
     }
 
-    public DateOnly ApplyWeekendRule(DateOnly d) => (Weekend, d.DayOfWeek) switch
-    {
-        (WeekendRule.Vorziehen, DayOfWeek.Saturday) => d.AddDays(-1),
-        (WeekendRule.Vorziehen, DayOfWeek.Sunday) => d.AddDays(-2),
-        (WeekendRule.Verschieben, DayOfWeek.Saturday) => d.AddDays(2),
-        (WeekendRule.Verschieben, DayOfWeek.Sunday) => d.AddDays(1),
-        _ => d,
-    };
+    /// <summary>
+    /// Tatsächlicher Buchungstag: Fällt der Termin auf Samstag, Sonntag oder einen Feiertag (<see cref="BusinessDays"/>),
+    /// wird auf den vorherigen (<see cref="WeekendRule.Vorziehen"/>) bzw. nächsten Werktag verschoben.
+    /// </summary>
+    public DateOnly ApplyWeekendRule(DateOnly d) =>
+        Weekend == WeekendRule.Vorziehen ? BusinessDays.PreviousOrSame(d) : BusinessDays.NextOrSame(d);
+
+    /// <summary>Höchstens so weit kann ein Termin verschoben werden (z. B. Karfreitag über Ostern + Wochenende).</summary>
+    private const int MaxShiftDays = 7;
 
     /// <summary>
     /// Ist der Termin dieser Serie im Monat von <paramref name="nominal"/> ausgesetzt? Eine Serie hat höchstens einen
@@ -135,8 +152,8 @@ public sealed class Entry
         for (int i = 0; i < SkippedDates.Count; i++)
         {
             var s = SkippedDates[i];
-            if (s.DayNumber < 3 || s.Year > 9998) continue;
-            var near = Schedule(s.AddDays(-3), s.AddDays(3)).ToList();
+            if (s.DayNumber < MaxShiftDays || s.Year > 9998) continue;
+            var near = Schedule(s.AddDays(-MaxShiftDays), s.AddDays(MaxShiftDays)).ToList();
             if (near.Any(o => o.Nominal == s)) continue; // bereits planmäßiger Termin
             int hit = near.FindIndex(o => o.Actual == s);
             if (hit >= 0) SkippedDates[i] = near[hit].Nominal;
@@ -151,7 +168,9 @@ public sealed class Entry
 
         int step = IntervalMonths;
         int startIdx = StartDate.Year * 12 + StartDate.Month - 1;
-        int fromIdx = from.Year * 12 + from.Month - 2; // ein Monat Puffer wegen Wochenend-Verschiebung
+        // Auf den ersten Buchungsmonat ab "gültig ab" vorrücken (ohne DueMonth: Monat von StartDate, also Versatz 0)
+        startIdx += ((CycleMonth - 1 - startIdx % step) % step + step) % step;
+        int fromIdx = from.Year * 12 + from.Month - 2; // ein Monat Puffer wegen Wochenend-/Feiertagsverschiebung
         int k = fromIdx > startIdx ? (fromIdx - startIdx) / step : 0;
 
         while (true)
@@ -162,7 +181,7 @@ public sealed class Entry
 
             var nominal = new DateOnly(year, month, Math.Min(DueDay, DateTime.DaysInMonth(year, month)));
             if (EndDate is { } end && nominal > end) yield break;
-            if (nominal > to.AddDays(3)) yield break;
+            if (nominal > to.AddDays(MaxShiftDays)) yield break;
             if (nominal < StartDate) continue; // Abbuchungstag liegt im Startmonat vor "gültig ab"
 
             var actual = ApplyWeekendRule(nominal);

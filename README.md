@@ -47,7 +47,10 @@ Gehalt? Was bleibt jeden Monat übrig?
 - **Drei Buchungsarten:** Gehalt (mit Arbeitgeber bzw. Job), sonstige Einnahme (Verkauf, Erstattung …) und Ausgabe (mit Kategorie)
 - **Rhythmen:** einmalig, monatlich, vierteljährlich, halbjährlich, jährlich, mit „gültig ab“ und optionalem Enddatum
 - **Abbuchungstag frei wählbar** (1.–30. oder „Monatsende“). Hat ein Monat weniger Tage, wird der letzte Tag genommen.
-- **Wochenendregel:** Fällt ein Termin aufs Wochenende, wird er auf Freitag vorgezogen oder auf Montag verschoben.
+- **Abbuchungsmonate wählbar:** bei vierteljährlich, halbjährlich und jährlich (z. B. Quartal am 8. Feb · Mai · Aug · Nov)
+- **Nur Werktage:** An Samstagen, Sonntagen und Feiertagen wird nicht gebucht. Der Termin wird auf den nächsten Werktag verschoben (oder auf den vorherigen vorgezogen).
+- **Feiertage je Bundesland:** werden lokal berechnet (ohne Internet) und im Kalender angezeigt, samt Hinweis, wohin Buchungen verschoben werden
+- **Ausgaben getrennt:** regelmäßige und einmalige Ausgaben stehen in zwei eigenen Tabellen; die Buttons in den Tabellen legen jeweils nur ihre Art an (z. B. „+ Ausgabe“ nur regelmäßige, „+ Einmalige Ausgabe“ nur einmalige Ausgaben – ebenso bei den Einnahmen)
 - **Einzelne Termine aussetzen**, ohne die ganze Serie zu löschen
 - **Ausgaben-Kategorien:** 13 Standardkategorien plus eigene. Anlegen, umbenennen, zusammenführen und löschen geht in einem Dialog.
 

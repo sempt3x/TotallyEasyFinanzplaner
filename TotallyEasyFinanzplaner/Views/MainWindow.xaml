@@ -67,6 +67,10 @@
                         <TextBlock x:Name="Bal" Text="{Binding BalanceText}" HorizontalAlignment="Right" VerticalAlignment="Center"
                                    FontWeight="SemiBold" FontSize="11.5" Foreground="{DynamicResource MutedBrush}"/>
                     </DockPanel>
+                    <!-- Feiertag (Bundesland des Plans): an diesem Tag wird nicht gebucht -->
+                    <TextBlock x:Name="HolidayLabel" DockPanel.Dock="Top" Text="{Binding HolidayText}" FontSize="10"
+                               FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" TextTrimming="CharacterEllipsis"
+                               Margin="0,0,0,1" Visibility="Collapsed"/>
                     <!-- "+2 weitere" -->
                     <TextBlock DockPanel.Dock="Bottom" Text="{Binding MoreText}" FontSize="10" Foreground="{DynamicResource MutedBrush}"/>
                     <!-- Buchungen des Tages -->
@@ -96,8 +100,11 @@
                 </DockPanel>
             </Border>
             <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding IsWeekend}" Value="True">
+                <DataTrigger Binding="{Binding IsNonBusinessDay}" Value="True">
                     <Setter TargetName="Cell" Property="Background" Value="{DynamicResource WeekendBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsHoliday}" Value="True">
+                    <Setter TargetName="HolidayLabel" Property="Visibility" Value="Visible"/>
                 </DataTrigger>
                 <Trigger SourceName="Cell" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Cell" Property="BorderBrush" Value="{DynamicResource CellHoverBrush}"/>
@@ -130,6 +137,14 @@
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+
+        <!-- Buttons im Tabellenkopf ("+ Gehalt", "+ Ausgabe" …): links neben dem Monatsbetrag -->
+        <Style x:Key="CardActions" TargetType="StackPanel">
+            <Setter Property="DockPanel.Dock" Value="Right"/>
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="12,0,20,0"/>
         </Style>
 
         <!-- Gruppenkopf in der Tabelle (Job bzw. Kategorie) -->
@@ -167,6 +182,20 @@
                 <DataTrigger Binding="{Binding IsOneTime}" Value="True">
                     <Setter TargetName="DayCombo" Property="Visibility" Value="Collapsed"/>
                     <Setter TargetName="DateText" Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Spalte "Rhythmus": darunter die Buchungsmonate (vierteljährlich/halbjährlich/jährlich) -->
+        <DataTemplate x:Key="RhythmCell">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding RecurrenceText}" Style="{StaticResource CellText}"/>
+                <TextBlock x:Name="Months" Text="{Binding MonthsText}" FontSize="10.5" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding MonthsText}"/>
+            </StackPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding MonthsText}" Value="">
+                    <Setter TargetName="Months" Property="Visibility" Value="Collapsed"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -277,6 +306,15 @@
                     BorderThickness="0,0,0,1" Padding="28,14">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Feiertage des Bundeslands: an Feiertagen (und Wochenenden) wird nicht gebucht -->
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource Overline}" Text="FEIERTAGE" HorizontalAlignment="Right"/>
+                            <TextBlock Style="{StaticResource MutedText}" Text="Bundesland" HorizontalAlignment="Right"/>
+                        </StackPanel>
+                        <ComboBox x:Name="StateBox" Width="200" VerticalAlignment="Center" Margin="0,0,28,0" MaxDropDownHeight="420"
+                                  ItemsSource="{x:Static m:Texts.StateOptions}" DisplayMemberPath="Text" SelectedValuePath="Value"
+                                  ToolTip="Gesetzliche Feiertage dieses Bundeslands berücksichtigen: Fällt eine Buchung auf einen Feiertag, erfolgt sie am nächsten (bzw. vorherigen) Werktag."
+                                  SelectionChanged="StateBox_SelectionChanged"/>
                         <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
                             <TextBlock Style="{StaticResource Overline}" Text="STARTSALDO" HorizontalAlignment="Right"/>
                             <TextBlock Style="{StaticResource MutedText}" Text="zu Beginn des Tages" HorizontalAlignment="Right"/>
@@ -654,6 +692,9 @@
                                     <Border Width="12" Height="10" CornerRadius="2" BorderThickness="1" Margin="0,0,6,0" VerticalAlignment="Center"
                                             Background="{DynamicResource NegativeCellBrush}" BorderBrush="{DynamicResource NegativeCellBorderBrush}"/>
                                     <TextBlock Text="Negativer Kontostand"/>
+                                    <Border Width="12" Height="10" CornerRadius="2" BorderThickness="1" Margin="0,0,6,0" VerticalAlignment="Center"
+                                            Background="{DynamicResource WeekendBrush}" BorderBrush="{DynamicResource LineBrush}"/>
+                                    <TextBlock Text="Wochenende/Feiertag – keine Buchung"/>
                                 </StackPanel>
                             </DockPanel>
                         </Grid>
@@ -666,6 +707,14 @@
                             <TextBlock x:Name="SelDateTitle" DockPanel.Dock="Top" Style="{StaticResource SectionTitle}"/>
                             <TextBlock x:Name="SelBalanceText" DockPanel.Dock="Top" Margin="0,8,0,2" FontSize="14" FontWeight="SemiBold"/>
                             <TextBlock x:Name="SelChangeText" DockPanel.Dock="Top" Margin="0,0,0,14" Foreground="{DynamicResource MutedBrush}"/>
+                            <!-- Wochenende/Feiertag: an diesem Tag wird nicht gebucht, Termine wandern auf einen Werktag -->
+                            <Border x:Name="SelHolidayBox" DockPanel.Dock="Top" Style="{StaticResource InfoBox}" Margin="0,0,0,12"
+                                    Visibility="Collapsed">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource InfoGlyph}"/>
+                                    <TextBlock x:Name="SelHolidayText" Style="{StaticResource InfoText}"/>
+                                </DockPanel>
+                            </Border>
 
                             <!-- Aktionen -->
                             <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
@@ -726,25 +775,11 @@
 
                     <!-- ==================================================== Werkzeugleiste -->
                     <DockPanel Margin="0,0,0,16" LastChildFill="False">
-                        <!-- Neu (Tag = EntryType) -->
-                        <Button DockPanel.Dock="Left" Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
-                                Content="Gehalt" Tag="Gehalt" Click="NewEntry_Click"/>
-                        <Button DockPanel.Dock="Left" Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
-                                Content="Sonstige Einnahme" Tag="Einnahme" Click="NewEntry_Click"/>
-                        <Button DockPanel.Dock="Left" Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
-                                Content="Ausgabe" Tag="Ausgabe" Click="NewEntry_Click"/>
-                        <Rectangle DockPanel.Dock="Left" Style="{StaticResource ToolbarSeparator}" Margin="8,0,12,0"/>
-
-                        <!-- Auswahl -->
+                        <!-- Auswahl (gilt für alle Tabellen). "+ Neu" steht im Kopf der jeweiligen Tabelle. -->
                         <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE70F;"
-                                Content="Bearbeiten" Click="EditEntry_Click"/>
+                                Content="Bearbeiten" ToolTip="Ausgewählte Buchung bearbeiten (oder Doppelklick)" Click="EditEntry_Click"/>
                         <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE74D;"
-                                Content="Löschen" Click="DeleteEntry_Click"/>
-                        <Rectangle DockPanel.Dock="Left" Style="{StaticResource ToolbarSeparator}"/>
-
-                        <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE8EC;"
-                                Content="Kategorien" ToolTip="Eigene Ausgaben-Kategorien anlegen, umbenennen, löschen"
-                                Click="ManageCategories_Click"/>
+                                Content="Löschen" ToolTip="Ausgewählte Buchung bzw. Serie löschen" Click="DeleteEntry_Click"/>
 
                         <!-- Rechts: Filter -->
                         <CheckBox x:Name="ShowFinishedBox" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="14,0,0,0"
@@ -782,12 +817,16 @@
                                             <TextBlock x:Name="SalaryMonthly" Style="{StaticResource LedgerTotal}" Foreground="{DynamicResource IncomeBrush}"/>
                                             <TextBlock x:Name="SalaryMonthlySub" Style="{StaticResource MutedText}" HorizontalAlignment="Right"/>
                                         </StackPanel>
+                                        <StackPanel Style="{StaticResource CardActions}">
+                                            <Button Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
+                                                    Content="Gehalt" Tag="Gehalt" ToolTip="Neues regelmäßiges Gehalt anlegen" Click="NewEntry_Click"/>
+                                        </StackPanel>
                                         <Border Style="{StaticResource IconTile}" Background="{DynamicResource AccentSoftBrush}" Margin="0,0,12,0">
                                             <TextBlock Style="{StaticResource IconTileGlyph}" Text="&#xE821;" Foreground="{DynamicResource AccentBrush}"/>
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Style="{StaticResource CardTitle}" Text="Gehälter"/>
-                                            <TextBlock x:Name="SalaryCount" Style="{StaticResource MutedText}"/>
+                                            <TextBlock x:Name="SalaryCount" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -820,8 +859,8 @@
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
                                                                 ElementStyle="{StaticResource NameCellText}"/>
-                                            <DataGridTextColumn Header="Rhythmus" Binding="{Binding RecurrenceText}" Width="100"
-                                                                ElementStyle="{StaticResource CellText}"/>
+                                            <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
+                                                                CellTemplate="{StaticResource RhythmCell}"/>
                                             <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
                                                                     CellTemplate="{StaticResource DueCell}"/>
                                             <DataGridTextColumn Header="Zeitraum" Binding="{Binding PeriodText}" Width="124"
@@ -843,12 +882,21 @@
                                             <TextBlock x:Name="IncomeMonthly" Style="{StaticResource LedgerTotal}" Foreground="{DynamicResource IncomeBrush}"/>
                                             <TextBlock x:Name="IncomeMonthlySub" Style="{StaticResource MutedText}" HorizontalAlignment="Right"/>
                                         </StackPanel>
+                                        <StackPanel Style="{StaticResource CardActions}">
+                                            <Button Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
+                                                    Content="Einnahme" Tag="Einnahme" ToolTip="Neue regelmäßige Einnahme (Miete, Kindergeld, Unterhalt …)"
+                                                    Click="NewEntry_Click"/>
+                                            <Button Style="{StaticResource IconButton}" local:Ui.Icon="&#xE710;" Margin="0"
+                                                    Content="Einmalige Einnahme" Tag="Einnahme:Einmalig"
+                                                    ToolTip="Neue einmalige Einnahme an einem bestimmten Werktag (Verkauf, Erstattung …)"
+                                                    Click="NewEntry_Click"/>
+                                        </StackPanel>
                                         <Border Style="{StaticResource IconTile}" Background="{DynamicResource IncomeSoftBrush}" Margin="0,0,12,0">
                                             <TextBlock Style="{StaticResource IconTileGlyph}" Text="&#xE74A;" Foreground="{DynamicResource IncomeBrush}"/>
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
                                             <TextBlock Style="{StaticResource CardTitle}" Text="Sonstige Einnahmen"/>
-                                            <TextBlock x:Name="IncomeCount" Style="{StaticResource MutedText}"/>
+                                            <TextBlock x:Name="IncomeCount" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -858,8 +906,8 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
                                                             ElementStyle="{StaticResource NameCellText}"/>
-                                        <DataGridTextColumn Header="Rhythmus" Binding="{Binding RecurrenceText}" Width="100"
-                                                            ElementStyle="{StaticResource CellText}"/>
+                                        <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
+                                                                CellTemplate="{StaticResource RhythmCell}"/>
                                         <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
                                                                 CellTemplate="{StaticResource DueCell}"/>
                                         <DataGridTextColumn Header="Zeitraum" Binding="{Binding PeriodText}" Width="124"
@@ -871,8 +919,8 @@
                             </DockPanel>
                         </Border>
 
-                        <!-- ================================================ Ausgaben (gruppiert nach Kategorie) -->
-                        <Border Grid.Column="2" Grid.RowSpan="3" Style="{StaticResource Card}">
+                        <!-- ================================================ Regelmäßige Ausgaben (gruppiert nach Kategorie) -->
+                        <Border Grid.Column="2" Style="{StaticResource Card}">
                             <DockPanel>
                                 <Border Style="{StaticResource CardHeader}">
                                     <DockPanel>
@@ -880,12 +928,20 @@
                                             <TextBlock x:Name="ExpenseMonthly" Style="{StaticResource LedgerTotal}" Foreground="{DynamicResource ExpenseBrush}"/>
                                             <TextBlock x:Name="ExpenseMonthlySub" Style="{StaticResource MutedText}" HorizontalAlignment="Right"/>
                                         </StackPanel>
+                                        <StackPanel Style="{StaticResource CardActions}">
+                                            <Button Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
+                                                    Content="Ausgabe" Tag="Ausgabe" ToolTip="Neue regelmäßige Ausgabe (monatlich, vierteljährlich …)"
+                                                    Click="NewEntry_Click"/>
+                                            <Button Style="{StaticResource IconButton}" local:Ui.Icon="&#xE8EC;" Margin="0"
+                                                    Content="Kategorien" ToolTip="Eigene Ausgaben-Kategorien anlegen, umbenennen, löschen"
+                                                    Click="ManageCategories_Click"/>
+                                        </StackPanel>
                                         <Border Style="{StaticResource IconTile}" Background="{DynamicResource ExpenseSoftBrush}" Margin="0,0,12,0">
                                             <TextBlock Style="{StaticResource IconTileGlyph}" Text="&#xE74B;" Foreground="{DynamicResource ExpenseBrush}"/>
                                         </Border>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Style="{StaticResource CardTitle}" Text="Ausgaben"/>
-                                            <TextBlock x:Name="ExpenseCount" Style="{StaticResource MutedText}"/>
+                                            <TextBlock Style="{StaticResource CardTitle}" Text="Regelmäßige Ausgaben"/>
+                                            <TextBlock x:Name="ExpenseCount" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -914,12 +970,52 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
                                                             ElementStyle="{StaticResource NameCellText}"/>
-                                        <DataGridTextColumn Header="Rhythmus" Binding="{Binding RecurrenceText}" Width="100"
-                                                            ElementStyle="{StaticResource CellText}"/>
+                                        <DataGridTemplateColumn Header="Rhythmus" SortMemberPath="RecurrenceText" Width="118"
+                                                                CellTemplate="{StaticResource RhythmCell}"/>
                                         <DataGridTemplateColumn Header="Fällig" SortMemberPath="DueDay" Width="114"
                                                                 CellTemplate="{StaticResource DueCell}"/>
                                         <DataGridTextColumn Header="Zeitraum" Binding="{Binding PeriodText}" Width="124"
                                                             ElementStyle="{StaticResource MutedCellText}"/>
+                                        <DataGridTemplateColumn Header="Betrag" SortMemberPath="SignedAmount" Width="108"
+                                                                CellTemplate="{StaticResource AmountCell}"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- ================================================ Einmalige Ausgaben (nach Datum) -->
+                        <Border Grid.Column="2" Grid.Row="2" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <Border Style="{StaticResource CardHeader}">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                                            <TextBlock x:Name="OneTimeExpenseTotal" Style="{StaticResource LedgerTotal}" Foreground="{DynamicResource ExpenseBrush}"/>
+                                            <TextBlock x:Name="OneTimeExpenseTotalSub" Style="{StaticResource MutedText}" HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                        <StackPanel Style="{StaticResource CardActions}">
+                                            <Button Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
+                                                    Content="Einmalige Ausgabe" Tag="Ausgabe:Einmalig"
+                                                    ToolTip="Neue einmalige Ausgabe an einem bestimmten Werktag" Click="NewEntry_Click"/>
+                                        </StackPanel>
+                                        <Border Style="{StaticResource IconTile}" Background="{DynamicResource OneTimeSoftBrush}" Margin="0,0,12,0">
+                                            <TextBlock Style="{StaticResource IconTileGlyph}" Text="&#xE787;" Foreground="{DynamicResource OneTimeBrush}"/>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Style="{StaticResource CardTitle}" Text="Einmalige Ausgaben"/>
+                                            <TextBlock x:Name="OneTimeExpenseCount" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <DataGrid x:Name="OneTimeExpenseGrid" Style="{StaticResource LedgerGrid}" Margin="6,0,6,6"
+                                          RowStyle="{StaticResource EntriesRowStyle}"
+                                          SelectionChanged="EntryGrid_SelectionChanged" MouseDoubleClick="EditEntry_Click">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Bezeichnung" Binding="{Binding Name}" Width="*" MinWidth="110"
+                                                            ElementStyle="{StaticResource NameCellText}"/>
+                                        <DataGridTextColumn Header="Kategorie" Binding="{Binding CategoryName}" Width="150"
+                                                            ElementStyle="{StaticResource MutedCellText}"/>
+                                        <DataGridTextColumn Header="Datum" Binding="{Binding DueText}" SortMemberPath="StartDate" Width="114"
+                                                            ElementStyle="{StaticResource CellText}"/>
                                         <DataGridTemplateColumn Header="Betrag" SortMemberPath="SignedAmount" Width="108"
                                                                 CellTemplate="{StaticResource AmountCell}"/>
                                     </DataGrid.Columns>

@@ -211,6 +211,8 @@ public static class DataStore
                 throw new InvalidDataException("Der Startsaldo ist unplausibel groß.");
             if (data.Entries.Count > Limits.MaxEntries)
                 throw new InvalidDataException($"Die Datei enthält mehr als {Limits.MaxEntries:N0} Buchungen.");
+            if (data.HolidayState is { } state && !Enum.IsDefined(state))
+                data.HolidayState = null; // unbekanntes Bundesland: nur bundesweite Feiertage
 
             foreach (var e in data.Entries)
             {
@@ -228,8 +230,13 @@ public static class DataStore
                 // Ausgesetzte Termine außerhalb des Bereichs sind harmlos (z. B. im Kalender weit vorgeblättert) – verwerfen
                 e.SkippedDates.RemoveAll(s => !Limits.IsValidDate(s));
                 if (e.DayOfMonth is { } day) e.DayOfMonth = Math.Clamp(day, 1, 31);
+                if (e.DueMonth is { } month) e.DueMonth = Math.Clamp(month, 1, 12);
                 e.Amount = Math.Abs(e.Amount);
-                e.NormalizeSkippedDates(); // ältere Dateien: verschobenen Tag → planmäßigen Termin
+                // Ältere Dateien: verschobenen Tag → planmäßigen Termin (mit den Feiertagen dieses Plans rechnen)
+                var activeState = BusinessDays.State;
+                BusinessDays.State = data.HolidayState;
+                try { e.NormalizeSkippedDates(); }
+                finally { BusinessDays.State = activeState; }
             }
             return data;
         }

@@ -259,9 +259,9 @@ public partial class MainWindow : Window
     /// <summary>Alle bisher verwendeten Ausgaben-Kategorien (für die Auswahl im Dialog).</summary>
     private IEnumerable<string> KnownCategories => _data.AllCategories();
 
-    private bool? ShowEntryDialog(Entry entry, bool isNew)
+    private bool? ShowEntryDialog(Entry entry, bool isNew, bool lockType = false)
     {
-        var result = new EntryDialog(entry, isNew, KnownJobs, KnownCategories) { Owner = this }.ShowDialog();
+        var result = new EntryDialog(entry, isNew, KnownJobs, KnownCategories, lockType) { Owner = this }.ShowDialog();
 
         // Im Dialog neu eingetippte Kategorie dauerhaft als eigene Kategorie merken
         if (result == true && entry.Category is { } cat && !Texts.IsDefaultCategory(cat)
@@ -337,11 +337,25 @@ public partial class MainWindow : Window
             ? "Keine Buchungen an diesem Tag."
             : $"{info.Items.Count} Buchung(en), Veränderung {Money.FormatSigned(info.Net)}";
         DayList.ItemsSource = info.Items;
+
+        // Wochenende/Feiertag: Hinweis, dass (und wohin) die Buchungen dieses Tages verschoben werden
+        if (BusinessDays.Reason(_selected) is { } reason)
+        {
+            var moved = info.Deferred
+                .GroupBy(i => i.Date).OrderBy(g => g.Key)
+                .Select(g => $"{string.Join(", ", g.Select(i => i.Name))} → {ToDateTime(g.Key).ToString("dddd, dd.MM.", Money.De)}");
+            SelHolidayText.Text = $"{reason} – an diesem Tag wird nicht gebucht. " +
+                                  (info.Deferred.Count == 0
+                                      ? "Fällige Buchungen erfolgen am nächsten Werktag (bzw. bei \"vorziehen\" am vorherigen)."
+                                      : "Planmäßige Buchungen werden verschoben: " + string.Join("; ", moved) + ".");
+            SelHolidayBox.Visibility = Visibility.Visible;
+        }
+        else SelHolidayBox.Visibility = Visibility.Collapsed;
     }
 
-    private DataGrid[] EntryGrids => [SalaryGrid, IncomeGrid, ExpenseGrid];
+    private DataGrid[] EntryGrids => [SalaryGrid, IncomeGrid, ExpenseGrid, OneTimeExpenseGrid];
 
-    /// <summary>Der in einer der drei Listen (Gehälter/Sonstige Einnahmen/Ausgaben) gewählte Eintrag.</summary>
+    /// <summary>Der in einer der Listen (Gehälter/Sonstige Einnahmen/regelmäßige bzw. einmalige Ausgaben) gewählte Eintrag.</summary>
     private Entry? SelectedEntry => EntryGrids.Select(g => g.SelectedItem).OfType<Entry>().FirstOrDefault();
 
     private void RefreshEntries()
@@ -362,7 +376,9 @@ public partial class MainWindow : Window
 
         var salaries = ListOf(EntryType.Gehalt);
         var incomes = ListOf(EntryType.Einnahme);
-        var expenses = ListOf(EntryType.Ausgabe);
+        var allExpenses = ListOf(EntryType.Ausgabe);
+        var expenses = allExpenses.Where(e => !e.IsOneTime).ToList();          // regelmäßig
+        var oneTimeExpenses = allExpenses.Where(e => e.IsOneTime).OrderBy(e => e.StartDate).ToList();
 
         // Gehälter nach Arbeitgeber/Job gruppieren
         var salaryView = new System.Windows.Data.ListCollectionView(salaries);
@@ -383,16 +399,24 @@ public partial class MainWindow : Window
         var expenseView = new System.Windows.Data.ListCollectionView(expenses);
         expenseView.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(Entry.CategoryName)));
         ExpenseGrid.ItemsSource = expenseView;
+        OneTimeExpenseGrid.ItemsSource = oneTimeExpenses;
         SalaryGrid.SelectedItem = salaries.FirstOrDefault(e => e.Id == selectedId);
         IncomeGrid.SelectedItem = incomes.FirstOrDefault(e => e.Id == selectedId);
         ExpenseGrid.SelectedItem = expenses.FirstOrDefault(e => e.Id == selectedId);
+        OneTimeExpenseGrid.SelectedItem = oneTimeExpenses.FirstOrDefault(e => e.Id == selectedId);
         SalaryEmpty.Visibility = salaries.Count == 0 && search.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         int jobs = salaries.Select(e => e.JobName).Distinct().Count();
         SalaryCount.Text = $"{jobs} Job{(jobs == 1 ? "" : "s")} · " + CountText(salaries);
         IncomeCount.Text = "Verkäufe, Kredite, Erstattungen … · " + CountText(incomes);
         int categories = expenses.Select(e => e.CategoryName).Distinct().Count();
-        ExpenseCount.Text = $"{categories} Kategorie{(categories == 1 ? "" : "n")} · " + CountText(expenses);
+        ExpenseCount.Text = $"Monatlich, vierteljährlich … · {categories} Kategorie{(categories == 1 ? "" : "n")} · {EntryCountText.Format(expenses.Count)}";
+
+        // Einmalige Ausgaben: Summe der noch offenen (ab heute)
+        var open = _data.Entries.Where(e => e.Type == EntryType.Ausgabe && e.IsOneTime && !e.IsFinished).ToList();
+        OneTimeExpenseCount.Text = $"Einzelne Termine · {EntryCountText.Format(oneTimeExpenses.Count)}";
+        OneTimeExpenseTotal.Text = "−" + Money.Format(open.Sum(e => e.Amount));
+        OneTimeExpenseTotalSub.Text = open.Count == 0 ? "nichts mehr offen" : $"noch offen ({open.Count})";
 
         var month = FirstOfMonth(Today);
         SetMonthly(SalaryMonthly, SalaryMonthlySub, _data.Entries.Where(e => e.Type == EntryType.Gehalt), month, "+");
@@ -582,6 +606,17 @@ public partial class MainWindow : Window
         SaveAndRefresh();
     }
 
+    /// <summary>Bundesland für die Feiertage gewählt – alle Buchungstage neu berechnen.</summary>
+    private void StateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressEvents || !_ready) return;
+        FederalState? state = Enum.TryParse<FederalState>(StateBox.SelectedValue as string, out var s) ? s : null;
+        if (state == _data.HolidayState) return;
+        _data.HolidayState = state;
+        BusinessDays.State = state;
+        SaveAndRefresh();
+    }
+
     private void StartBalanceBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) CommitStartBalance();
@@ -657,10 +692,23 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ Einträge bearbeiten
 
-    private void AddOneTime(DateOnly date)
+    /// <param name="lockType">true bei den Buttons der Tabellen (Art fest), false im Kalender (Art wählbar).</param>
+    private void AddOneTime(DateOnly date, EntryType type = EntryType.Ausgabe, bool lockType = false)
     {
-        var entry = new Entry { Recurrence = Recurrence.Einmalig, StartDate = date };
-        if (ShowEntryDialog(entry, isNew: true) == true)
+        // An Samstagen und Sonntagen wird nicht gebucht → nächsten Werktag anbieten
+        if (BusinessDays.IsWeekend(date))
+        {
+            var next = BusinessDays.NextOrSame(date);
+            if (MessageDialog.Show(this,
+                    $"{ToDateTime(date).ToString("dddd, dd.MM.yyyy", Money.De)}: An Wochenenden wird nicht gebucht.\n\n" +
+                    $"Einmalzahlung stattdessen am nächsten Werktag, {ToDateTime(next).ToString("dddd, dd.MM.yyyy", Money.De)}, anlegen?",
+                    "Kein Buchungstag", MessageBoxButton.YesNo, MessageBoxImage.Information) != MessageBoxResult.Yes)
+                return;
+            date = next;
+        }
+
+        var entry = new Entry { Recurrence = Recurrence.Einmalig, StartDate = date, Type = type };
+        if (ShowEntryDialog(entry, isNew: true, lockType) == true)
         {
             _data.Entries.Add(entry);
             SaveAndRefresh();
@@ -712,9 +760,16 @@ public partial class MainWindow : Window
 
     private void NewEntry_Click(object sender, RoutedEventArgs e)
     {
-        var type = Enum.TryParse<EntryType>((sender as FrameworkElement)?.Tag as string, out var t) ? t : EntryType.Ausgabe;
-        var entry = new Entry { Recurrence = Recurrence.Monatlich, StartDate = _selected, Type = type };
-        if (ShowEntryDialog(entry, isNew: true) == true)
+        // Tag = "Art" oder "Art:Rhythmus", z. B. "Ausgabe:Einmalig"
+        var tag = ((sender as FrameworkElement)?.Tag as string ?? "").Split(':');
+        var type = Enum.TryParse<EntryType>(tag[0], out var t) ? t : EntryType.Ausgabe;
+        if (tag.Length > 1 && Enum.TryParse<Recurrence>(tag[1], out var r) && r == Recurrence.Einmalig)
+        {
+            AddOneTime(_selected, type, lockType: true);
+            return;
+        }
+        var entry = new Entry { Recurrence = Recurrence.Monatlich, StartDate = _selected, Type = type, Weekend = WeekendRule.Verschieben };
+        if (ShowEntryDialog(entry, isNew: true, lockType: true) == true)
         {
             _data.Entries.Add(entry);
             SaveAndRefresh();

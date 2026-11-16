@@ -21,9 +21,12 @@ public partial class MainWindow
         _selected = Today;
         _month = FirstOfMonth(Today);
 
+        BusinessDays.State = _data.HolidayState; // Feiertage dieses Plans für alle Berechnungen
+
         _suppressEvents = true;
         StartDatePicker.SelectedDate = ToDateTime(_data.StartDate);
         StartBalanceBox.Text = Money.Plain(_data.StartBalance);
+        StateBox.SelectedValue = _data.HolidayState?.ToString() ?? "";
         _suppressEvents = false;
 
         AppSettings.Current.RememberFile(doc.FilePath);

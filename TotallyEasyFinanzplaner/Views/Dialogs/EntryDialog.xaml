@@ -37,11 +37,12 @@
                     <RowDefinition Height="Auto"/> <!-- 3  Kategorie (nur Ausgabe) -->
                     <RowDefinition Height="Auto"/> <!-- 4  Betrag -->
                     <RowDefinition Height="Auto"/> <!-- 5  Rhythmus -->
-                    <RowDefinition Height="Auto"/> <!-- 6  Abbuchungstag -->
-                    <RowDefinition Height="Auto"/> <!-- 7  Datum -->
-                    <RowDefinition Height="Auto"/> <!-- 8  Endet am -->
-                    <RowDefinition Height="Auto"/> <!-- 9  Wochenende -->
-                    <RowDefinition Height="Auto"/> <!-- 10 Notiz -->
+                    <RowDefinition Height="Auto"/> <!-- 6  Buchungsmonate (nur vierteljährlich/halbjährlich/jährlich) -->
+                    <RowDefinition Height="Auto"/> <!-- 7  Abbuchungstag -->
+                    <RowDefinition Height="Auto"/> <!-- 8  Datum -->
+                    <RowDefinition Height="Auto"/> <!-- 9  Endet am -->
+                    <RowDefinition Height="Auto"/> <!-- 10 Wochenende/Feiertag -->
+                    <RowDefinition Height="Auto"/> <!-- 11 Notiz -->
                 </Grid.RowDefinitions>
 
                 <!-- Beschriftung links, Feld rechts; 12 px Abstand zwischen den Zeilen -->
@@ -79,7 +80,7 @@
                 <TextBlock Grid.Row="0" Text="Bezeichnung"/>
                 <TextBox   Grid.Row="0" Grid.Column="1" x:Name="NameBox"/>
 
-                <TextBlock Grid.Row="1" Text="Art"/>
+                <TextBlock Grid.Row="1" x:Name="TypeLabel" Text="Art"/>
                 <ComboBox  Grid.Row="1" Grid.Column="1" x:Name="TypeBox" SelectionChanged="TypeBox_SelectionChanged"/>
 
                 <TextBlock Grid.Row="2" x:Name="JobLabel" Style="{StaticResource KeyLabel}" Text="Arbeitgeber / Job"/>
@@ -94,28 +95,34 @@
                 <TextBlock Grid.Row="4" Text="Betrag (€)"/>
                 <TextBox   Grid.Row="4" Grid.Column="1" x:Name="AmountBox" FontWeight="SemiBold"/>
 
-                <TextBlock Grid.Row="5" Text="Rhythmus"/>
+                <TextBlock Grid.Row="5" x:Name="RecurrenceLabel" Text="Rhythmus"/>
                 <ComboBox  Grid.Row="5" Grid.Column="1" x:Name="RecurrenceBox" SelectionChanged="RecurrenceBox_SelectionChanged"/>
 
-                <TextBlock Grid.Row="6" x:Name="DayLabel" Style="{StaticResource KeyLabel}" Text="Abbuchungstag"/>
-                <ComboBox  Grid.Row="6" Grid.Column="1" x:Name="DayBox" MaxDropDownHeight="320"
+                <TextBlock Grid.Row="6" x:Name="MonthLabel" Style="{StaticResource KeyLabel}" Text="Buchungsmonate"/>
+                <ComboBox  Grid.Row="6" Grid.Column="1" x:Name="MonthBox" MaxDropDownHeight="320"
+                           ToolTip="In welchen Monaten gebucht wird – z. B. vierteljährlich Feb · Mai · Aug · Nov"
+                           SelectionChanged="MonthBox_SelectionChanged"/>
+
+                <TextBlock Grid.Row="7" x:Name="DayLabel" Style="{StaticResource KeyLabel}" Text="Abbuchungstag"/>
+                <ComboBox  Grid.Row="7" Grid.Column="1" x:Name="DayBox" MaxDropDownHeight="320"
                            SelectionChanged="DayBox_SelectionChanged"/>
 
-                <TextBlock  Grid.Row="7" x:Name="DateLabel" Text="Datum"/>
-                <DatePicker Grid.Row="7" Grid.Column="1" x:Name="StartPicker" SelectedDateChanged="StartPicker_SelectedDateChanged"/>
+                <TextBlock  Grid.Row="8" x:Name="DateLabel" Text="Datum"/>
+                <DatePicker Grid.Row="8" Grid.Column="1" x:Name="StartPicker" SelectedDateChanged="StartPicker_SelectedDateChanged"/>
 
-                <TextBlock Grid.Row="8" x:Name="EndLabel" Text="Endet am"/>
-                <DockPanel Grid.Row="8" Grid.Column="1" x:Name="EndPanel" Margin="0,0,0,12">
+                <TextBlock Grid.Row="9" x:Name="EndLabel" Text="Endet am"/>
+                <DockPanel Grid.Row="9" Grid.Column="1" x:Name="EndPanel" Margin="0,0,0,12">
                     <CheckBox x:Name="HasEndBox" VerticalAlignment="Center" Margin="0,0,4,0" MinWidth="0"
                               Checked="HasEndBox_Changed" Unchecked="HasEndBox_Changed"/>
                     <DatePicker x:Name="EndPicker" Margin="0" IsEnabled="False"/>
                 </DockPanel>
 
-                <TextBlock Grid.Row="9" Text="Fällt auf Wochenende"/>
-                <ComboBox  Grid.Row="9" Grid.Column="1" x:Name="WeekendBox"/>
+                <TextBlock Grid.Row="10" Text="Wochenende/Feiertag"/>
+                <ComboBox  Grid.Row="10" Grid.Column="1" x:Name="WeekendBox" SelectionChanged="WeekendBox_SelectionChanged"
+                           ToolTip="An Samstagen, Sonntagen und Feiertagen wird nicht gebucht – die Buchung erfolgt am nächsten bzw. vorherigen Werktag."/>
 
-                <TextBlock Grid.Row="10" Text="Notiz"/>
-                <TextBox   Grid.Row="10" Grid.Column="1" x:Name="NoteBox"/>
+                <TextBlock Grid.Row="11" Text="Notiz"/>
+                <TextBox   Grid.Row="11" Grid.Column="1" x:Name="NoteBox"/>
             </Grid>
 
             <!-- ======================================================== Hinweise -->

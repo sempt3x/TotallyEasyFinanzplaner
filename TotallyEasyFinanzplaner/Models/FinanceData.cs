@@ -12,6 +12,11 @@ public sealed class FinanceData
     public List<Entry> Entries { get; set; } = [];
     /// <summary>Selbst angelegte Ausgaben-Kategorien (zusätzlich zu <see cref="Texts.DefaultCategories"/>).</summary>
     public List<string> Categories { get; set; } = [];
+    /// <summary>
+    /// Bundesland, dessen Feiertage gelten (an Feiertagen wird nicht gebucht). Null = nur bundesweite Feiertage.
+    /// Optional, damit ältere Pläne unverändert geöffnet werden können.
+    /// </summary>
+    public FederalState? HolidayState { get; set; }
 
     /// <summary>Alle wählbaren Kategorien: Standard, eigene und in Ausgaben verwendete – ohne Doppelte.</summary>
     public IReadOnlyList<string> AllCategories()

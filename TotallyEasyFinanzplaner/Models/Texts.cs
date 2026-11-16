@@ -16,9 +16,9 @@ public static class Texts
 
     public static string Of(WeekendRule w) => w switch
     {
-        WeekendRule.Keine => "Nicht verschieben",
-        WeekendRule.Vorziehen => "Auf Freitag vorziehen",
-        WeekendRule.Verschieben => "Auf Montag verschieben",
+        // Keine stammt aus älteren Plänen und wirkt wie Verschieben – an Wochenenden/Feiertagen wird nie gebucht
+        WeekendRule.Keine or WeekendRule.Verschieben => "Auf nächsten Werktag verschieben",
+        WeekendRule.Vorziehen => "Auf vorherigen Werktag vorziehen",
         _ => w.ToString(),
     };
 
@@ -47,6 +47,41 @@ public static class Texts
     /// <summary>Auswahlliste für den Abbuchungstag (1.–30. und Monatsende).</summary>
     public static IReadOnlyList<Option> DayOptions { get; } =
         Enumerable.Range(1, 31).Select(d => new Option(d, Day(d))).ToList();
+
+    private static string MonthName(int month, string format) =>
+        new DateTime(2000, month, 1).ToString(format, Money.De).TrimEnd('.');
+
+    private static int Interval(Recurrence r) => r switch
+    {
+        Recurrence.Vierteljaehrlich => 3,
+        Recurrence.Halbjaehrlich => 6,
+        Recurrence.Jaehrlich => 12,
+        _ => 0,
+    };
+
+    /// <summary>
+    /// Buchungsmonate eines Rhythmus ab dem ersten Monat im Jahr, z. B. vierteljährlich/2 → "Feb · Mai · Aug · Nov",
+    /// jährlich/3 → "März". Leer bei monatlich und einmalig.
+    /// </summary>
+    public static string Months(Recurrence r, int cycleMonth)
+    {
+        int step = Interval(r);
+        if (step == 0) return "";
+        if (step == 12) return MonthName(cycleMonth, "MMMM");
+        return string.Join(" · ", Enumerable.Range(0, 12 / step).Select(i => MonthName(cycleMonth + i * step, "MMM")));
+    }
+
+    /// <summary>Auswahlliste "Buchungsmonate" für vierteljährlich/halbjährlich/jährlich (Wert = erster Monat im Jahr).</summary>
+    public static IReadOnlyList<Option> MonthOptions(Recurrence r) =>
+        Enumerable.Range(1, Interval(r)).Select(m => new Option(m, Months(r, m))).ToList();
+
+    /// <summary>Auswahlliste der Bundesländer für die Feiertage (Wert null = nur bundesweite Feiertage).</summary>
+    public static IReadOnlyList<Option> StateOptions { get; } =
+    [
+        new Option("", "Nur bundesweit"),
+        .. Enum.GetValues<FederalState>().OrderBy(Holidays.NameOf, StringComparer.CurrentCulture)
+            .Select(s => new Option(s.ToString(), Holidays.NameOf(s))),
+    ];
 }
 
 public sealed record Option(object Value, string Text);
