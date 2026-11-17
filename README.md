@@ -51,6 +51,7 @@ Gehalt? Was bleibt jeden Monat übrig?
 - **Nur Werktage:** An Samstagen, Sonntagen und Feiertagen wird nicht gebucht. Der Termin wird auf den nächsten Werktag verschoben (oder auf den vorherigen vorgezogen).
 - **Feiertage je Bundesland:** werden lokal berechnet (ohne Internet) und im Kalender angezeigt, samt Hinweis, wohin Buchungen verschoben werden
 - **Ausgaben getrennt:** regelmäßige und einmalige Ausgaben stehen in zwei eigenen Tabellen; die Buttons in den Tabellen legen jeweils nur ihre Art an (z. B. „+ Ausgabe“ nur regelmäßige, „+ Einmalige Ausgabe“ nur einmalige Ausgaben – ebenso bei den Einnahmen)
+- **Zahlungsweg mit Symbol:** Bankkonto (Standard), Kreditkarte, PayPal, Klarna, Amazon, Ratenkauf, Apple Pay oder Google Pay. Ein kleines Symbol vor jeder Buchung zeigt, worüber bezahlt wurde; abgebucht wird weiterhin vom Konto.
 - **Einzelne Termine aussetzen**, ohne die ganze Serie zu löschen
 - **Ausgaben-Kategorien:** 13 Standardkategorien plus eigene. Anlegen, umbenennen, zusammenführen und löschen geht in einem Dialog.
 
