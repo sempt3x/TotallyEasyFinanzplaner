@@ -29,10 +29,12 @@ public partial class MainWindow
         StateBox.SelectedValue = _data.HolidayState?.ToString() ?? "";
         _suppressEvents = false;
 
-        AppSettings.Current.RememberFile(doc.FilePath);
         UpdatePlanUi();
         StatusSaved.Text = $"Geöffnet um {DateTime.Now:HH:mm}";
         RefreshAll();
+        // Erst merken, wenn der Plan angezeigt werden konnte – sonst würde ein Plan, an dem das Programm
+        // scheitert, bei jedem Start erneut geöffnet
+        AppSettings.Current.RememberFile(doc.FilePath);
     }
 
     /// <summary>Wechselt zu einem anderen (bereits geöffneten) Plan.</summary>

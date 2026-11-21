@@ -246,6 +246,8 @@ public partial class EntryDialog : Window
         else if (!Money.TryParse(AmountBox.Text, out var amount) || amount <= 0)
             error = "Bitte einen positiven Betrag eingeben (z. B. 49,99), höchstens " + Money.Plain(Limits.MaxAmount) + ". " +
                     (TypeBox.IsVisible ? "Ob Einnahme oder Ausgabe, wird über \"Art\" gewählt." : "");
+        else if (JobBox.Text.Trim().Length > Limits.MaxTextLength || CategoryBox.Text.Trim().Length > Limits.MaxTextLength)
+            error = $"Arbeitgeber/Job und Kategorie dürfen höchstens {Limits.MaxTextLength} Zeichen lang sein.";
         else if (SelectedType == EntryType.Gehalt && string.IsNullOrWhiteSpace(JobBox.Text))
             error = "Bitte den Arbeitgeber bzw. Job angeben, zu dem dieses Gehalt gehört.";
         else if (StartPicker.SelectedDate is not { } start) error = "Bitte ein Datum wählen.";

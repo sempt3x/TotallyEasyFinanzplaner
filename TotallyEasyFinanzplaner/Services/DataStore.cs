@@ -202,6 +202,9 @@ public static class DataStore
                 throw new InvalidDataException("Die Datei wurde mit einer neueren Programmversion erstellt.");
             data.Entries ??= [];
             data.Categories ??= [];
+            // "null"-Einträge (von Hand bearbeitet) würden sonst beim Prüfen unten abstürzen
+            data.Entries.RemoveAll(e => e is null);
+            data.Categories = [.. data.Categories.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => Limits.Clip(c, Limits.MaxTextLength)!)];
 
             // Unplausible Werte (von Hand bearbeitet oder manipuliert) würden sonst das Programm lahmlegen
             // (Prognose über Jahrtausende) oder beim Rechnen zum Überlauf und Absturz führen
@@ -211,13 +214,21 @@ public static class DataStore
                 throw new InvalidDataException("Der Startsaldo ist unplausibel groß.");
             if (data.Entries.Count > Limits.MaxEntries)
                 throw new InvalidDataException($"Die Datei enthält mehr als {Limits.MaxEntries:N0} Buchungen.");
+            if (data.Entries.Count(e => e.Recurrence != Recurrence.Einmalig) > Limits.MaxRecurringEntries)
+                throw new InvalidDataException($"Die Datei enthält mehr als {Limits.MaxRecurringEntries:N0} regelmäßige Buchungen.");
+            if (!Limits.IsValidStartDate(data.StartDate))
+                throw new InvalidDataException($"Der Stichtag des Startsaldos ({data.StartDate:dd.MM.yyyy}) muss im Zeitraum " +
+                                               $"{Limits.StartDateRangeText} liegen.");
             if (data.HolidayState is { } state && !Enum.IsDefined(state))
                 data.HolidayState = null; // unbekanntes Bundesland: nur bundesweite Feiertage
 
             foreach (var e in data.Entries)
             {
                 e.SkippedDates ??= [];
-                e.Name ??= "";
+                e.Name = Limits.Clip(e.Name, Limits.MaxTextLength) ?? "";
+                e.Job = Limits.Clip(e.Job, Limits.MaxTextLength);
+                e.Category = Limits.Clip(e.Category, Limits.MaxTextLength);
+                e.Note = Limits.Clip(e.Note, Limits.MaxNoteLength);
                 // Unbekannte Werte (z. B. von Hand bearbeitet) würden sonst erst beim Rechnen abstürzen
                 if (!Enum.IsDefined(e.Type) || !Enum.IsDefined(e.Recurrence) || !Enum.IsDefined(e.Weekend))
                     throw new InvalidDataException($"Der Eintrag „{e.Name}“ enthält eine unbekannte Art, Wiederholung oder Wochenendregel.");

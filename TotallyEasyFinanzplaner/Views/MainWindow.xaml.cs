@@ -136,17 +136,44 @@ public partial class MainWindow : Window
 
     private void RefreshAll()
     {
-        RefreshCalendar();
+        ComputeForecast();
+        ShowCalendar();
         RefreshEntries();
-        RefreshDashboard();
+        ShowDashboard();
         StatusCount.Text = $"{EntryCountText.Format(_data.Entries.Count)}  ·  Startsaldo {Money.Format(_data.StartBalance)} am {_data.StartDate:dd.MM.yyyy}";
     }
 
-    private void RefreshDashboard()
+    /// <summary>Letzter Tag der Dashboard-Prognose (12 Monate ab dem laufenden Monat).</summary>
+    private static DateOnly DashboardHorizon => FirstOfMonth(Today).AddMonths(12).AddDays(-1);
+
+    /// <summary>Tage, die der Kalender (6 Wochen) und die Prognose-Seite (12 Monate) ab dem angezeigten Monat brauchen.</summary>
+    private (DateOnly From, DateOnly To, DateOnly GridStart, DateOnly YearEnd) CalendarRange()
+    {
+        int offset = ((int)_month.DayOfWeek + 6) % 7; // Montag = 0
+        var gridStart = _month.AddDays(-offset);
+        var gridEnd = gridStart.AddDays(41);
+        var yearEnd = _month.AddMonths(12).AddDays(-1);
+        var from = new[] { gridStart.AddDays(-1), _selected }.Min();
+        var to = new[] { gridEnd, yearEnd, _selected }.Max();
+        return (from, to, gridStart, yearEnd);
+    }
+
+    /// <summary>
+    /// Berechnet die Tagesprognose einmal für alles, was angezeigt wird: Kalender, Prognose-Seite und Dashboard.
+    /// Gerechnet wird ohnehin ab dem Stichtag – ein gemeinsamer Zeitraum kostet kaum mehr als einer.
+    /// </summary>
+    private void ComputeForecast()
+    {
+        var (from, to, _, _) = CalendarRange();
+        var yesterday = Today.AddDays(-1);
+        _days = Forecast.Compute(_data, from < yesterday ? from : yesterday, to > DashboardHorizon ? to : DashboardHorizon);
+    }
+
+    private void ShowDashboard()
     {
         var today = Today;
-        var horizon = FirstOfMonth(today).AddMonths(12).AddDays(-1);
-        var days = Forecast.Compute(_data, today.AddDays(-1), horizon);
+        var horizon = DashboardHorizon;
+        var days = _days;
 
         // Kontostand heute
         var todayInfo = days[today];
@@ -170,7 +197,7 @@ public partial class MainWindow : Window
         DashMonthEndSub.Text = $"{ToDateTime(today).ToString("MMMM", Money.De)}: +{Money.Plain(stats.Income)} / −{Money.Plain(stats.Expense)}";
 
         // Tiefststand und erster negativer Tag in den nächsten 12 Monaten
-        var future = days.Values.Where(d => d.Date >= today && d.Balance is not null).ToList();
+        var future = days.Values.Where(d => d.Date >= today && d.Date <= horizon && d.Balance is not null).ToList();
         var min = future.MinBy(d => d.Balance);
         ShowAmount(DashMin, min?.Balance);
         DashMinSub.Text = min is null ? "" : $"am {ToDateTime(min.Date).ToString("dddd, dd.MM.yyyy", Money.De)}";
@@ -277,16 +304,10 @@ public partial class MainWindow : Window
         RefreshAll();
     }
 
-    private void RefreshCalendar()
+    /// <summary>Kalender und Prognose-Seite aus der bereits berechneten Prognose (<see cref="ComputeForecast"/>) aufbauen.</summary>
+    private void ShowCalendar()
     {
-        int offset = ((int)_month.DayOfWeek + 6) % 7; // Montag = 0
-        var gridStart = _month.AddDays(-offset);
-        var gridEnd = gridStart.AddDays(41);
-        var yearEnd = _month.AddMonths(12).AddDays(-1);
-
-        var from = new[] { gridStart.AddDays(-1), _selected }.Min();
-        var to = new[] { gridEnd, yearEnd, _selected }.Max();
-        _days = Forecast.Compute(_data, from, to);
+        var (_, _, gridStart, yearEnd) = CalendarRange();
 
         MonthTitle.Text = ToDateTime(_month).ToString("MMMM yyyy", Money.De);
 
@@ -475,7 +496,8 @@ public partial class MainWindow : Window
     private void ShowMonth(DateOnly month)
     {
         _month = FirstOfMonth(month);
-        RefreshCalendar();
+        ComputeForecast(); // anderer Zeitraum – Daten unverändert, Dashboard bleibt
+        ShowCalendar();
     }
 
     private void PrevMonth_Click(object sender, RoutedEventArgs e) => ShowMonth(_month.AddMonths(-1));
@@ -594,9 +616,9 @@ public partial class MainWindow : Window
     private void StartDatePicker_SelectedDateChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppressEvents || StartDatePicker.SelectedDate is not { } d) return;
-        if (!Limits.IsValidDate(d))
+        if (!Limits.IsValidStartDate(d))
         {
-            MessageDialog.Show(this, $"Der Stichtag muss zwischen {Limits.DateRangeText} liegen.", "Ungültiges Datum",
+            MessageDialog.Show(this, $"Der Stichtag muss im Zeitraum {Limits.StartDateRangeText} liegen.", "Ungültiges Datum",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             _suppressEvents = true;
             StartDatePicker.SelectedDate = ToDateTime(_data.StartDate);
@@ -694,8 +716,26 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ Einträge bearbeiten
 
     /// <param name="lockType">true bei den Buttons der Tabellen (Art fest), false im Kalender (Art wählbar).</param>
+    /// <summary>
+    /// Prüft die Obergrenzen aus <see cref="Limits"/> vor dem Anlegen – ein Plan darüber ließe sich sonst nicht mehr öffnen.
+    /// </summary>
+    private bool CanAddEntry(bool recurring)
+    {
+        string? error = _data.Entries.Count >= Limits.MaxEntries
+            ? $"Ein Finanzplan kann höchstens {Limits.MaxEntries:N0} Buchungen enthalten."
+            : recurring && _data.Entries.Count(e => !e.IsOneTime) >= Limits.MaxRecurringEntries
+                ? $"Ein Finanzplan kann höchstens {Limits.MaxRecurringEntries:N0} regelmäßige Buchungen enthalten."
+                : null;
+        if (error is null) return true;
+        MessageDialog.Show(this, error + "\n\nBitte nicht mehr benötigte Buchungen löschen.", "Obergrenze erreicht",
+            MessageBoxButton.OK, MessageBoxImage.Warning);
+        return false;
+    }
+
     private void AddOneTime(DateOnly date, EntryType type = EntryType.Ausgabe, bool lockType = false)
     {
+        if (!CanAddEntry(recurring: false)) return;
+
         // An Samstagen und Sonntagen wird nicht gebucht → nächsten Werktag anbieten
         if (BusinessDays.IsWeekend(date))
         {
@@ -769,6 +809,7 @@ public partial class MainWindow : Window
             AddOneTime(_selected, type, lockType: true);
             return;
         }
+        if (!CanAddEntry(recurring: true)) return;
         var entry = new Entry { Recurrence = Recurrence.Monatlich, StartDate = _selected, Type = type, Weekend = WeekendRule.Verschieben };
         if (ShowEntryDialog(entry, isNew: true, lockType: true) == true)
         {
@@ -808,8 +849,10 @@ public partial class MainWindow : Window
 
         entry.DueDay = day;
         Save();
-        RefreshCalendar(); // Liste bewusst nicht neu aufbauen, damit die Zeile nicht wegspringt
-        RefreshDashboard();
+        // Liste bewusst nicht neu aufbauen, damit die Zeile nicht wegspringt
+        ComputeForecast();
+        ShowCalendar();
+        ShowDashboard();
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)

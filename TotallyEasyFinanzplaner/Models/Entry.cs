@@ -129,8 +129,9 @@ public sealed class Entry
     /// Termin pro Monat – deshalb zählt nur der Monat. So bleibt eine Aussetzung auch erhalten, wenn später
     /// Abbuchungstag oder Wochenendregel geändert werden.
     /// </summary>
-    public bool IsSkipped(DateOnly nominal) =>
-        SkippedDates.Any(s => s.Year == nominal.Year && s.Month == nominal.Month);
+    public bool IsSkipped(DateOnly nominal) => SkippedDates.Any(s => MonthKey(s) == MonthKey(nominal));
+
+    private static int MonthKey(DateOnly d) => d.Year * 12 + d.Month;
 
     /// <summary>Alle tatsächlichen Buchungstage im Zeitraum [from, to].</summary>
     public IEnumerable<DateOnly> OccurrencesBetween(DateOnly from, DateOnly to) =>
@@ -149,8 +150,10 @@ public sealed class Entry
             yield break;
         }
 
+        // Einmal je Aufruf als Menge aufbauen – sonst würde für jeden Termin die ganze Liste durchsucht
+        HashSet<int>? skipped = SkippedDates.Count == 0 ? null : [.. SkippedDates.Select(MonthKey)];
         foreach (var o in Schedule(from, to))
-            if (!IsSkipped(o.Nominal)) yield return o;
+            if (skipped is null || !skipped.Contains(MonthKey(o.Nominal))) yield return o;
     }
 
     /// <summary>
