@@ -42,6 +42,20 @@ public static class Texts
         _ => p.ToString(),
     };
 
+    public static string Of(LoanKind k) => k switch
+    {
+        LoanKind.Ratenzahlung => "Ratenzahlung",
+        _ => "Kredit",
+    };
+
+    public static string Of(LoanRowKind k) => k switch
+    {
+        LoanRowKind.Auszahlung => "Auszahlung",
+        LoanRowKind.Rate => "Rate",
+        LoanRowKind.Sondertilgung => "Sondertilgung",
+        _ => "Ablösung",
+    };
+
     /// <summary>Auswahlliste der Zahlungswege (Bankkonto zuerst = Standard).</summary>
     public static IReadOnlyList<Option> PaymentOptions { get; } =
         Enum.GetValues<PaymentMethod>().Select(p => new Option(p, Of(p))).ToList();

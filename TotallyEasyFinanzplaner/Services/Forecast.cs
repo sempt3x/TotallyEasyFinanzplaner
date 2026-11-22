@@ -9,7 +9,10 @@ public sealed record DayItem(Entry Entry, DateOnly Date, DateOnly Nominal)
     public decimal Signed => Entry.SignedAmount;
     public string Name => Entry.Name;
     public bool IsIncome => Entry.IsIncome;
-    public bool IsOneTime => Entry.IsOneTime;
+    /// <summary>Einmalzahlung – Kreditraten zählen als regelmäßig, Sondertilgung und Ablösung als einmalig.</summary>
+    public bool IsOneTime => Entry.IsOneTime && Entry.LoanRow?.Kind is not LoanRowKind.Rate;
+    /// <summary>Zahlung aus einem Kreditplan (wird dort bearbeitet).</summary>
+    public Loan? Loan => Entry.Loan;
     public string AmountText => Money.FormatSigned(Signed);
     public string ShortAmount => (Signed > 0 ? "+" : "−") + Money.Plain(Math.Abs(Signed));
     public bool IsSalary => Entry.IsSalary;
@@ -21,7 +24,14 @@ public sealed record DayItem(Entry Entry, DateOnly Date, DateOnly Nominal)
         ? $"Planmäßig {Nominal:dd.MM.}" + (BusinessDays.Reason(Nominal) is { } r ? $" ({r})" : "")
         : "";
     public string SubText => (IsShifted ? ShiftText + " · " : "")
-                             + (IsSalary ? $"Gehalt · {Entry.JobName} · " : "")
+                             + (Entry.Loan is { } loan ? LoanText(loan) : OwnText);
+
+    /// <summary>z. B. "Ratenzahlung · Klarna · Restschuld danach 450,00 €".</summary>
+    private string LoanText(Loan loan) => Texts.Of(loan.Kind)
+        + (string.IsNullOrWhiteSpace(loan.Lender) ? "" : " · " + loan.Lender.Trim())
+        + (string.IsNullOrWhiteSpace(Entry.Note) ? "" : " · " + Entry.Note);
+
+    private string OwnText => (IsSalary ? $"Gehalt · {Entry.JobName} · " : "")
                              + (Entry.Type == EntryType.Ausgabe ? $"{Entry.CategoryName} · " : "")
                              + (IsOneTime ? "Einmalzahlung" : Entry.RecurrenceText)
                              + (string.IsNullOrWhiteSpace(Entry.Note) ? "" : " · " + Entry.Note);
@@ -51,7 +61,7 @@ public static class Forecast
         for (var d = begin; d <= to; d = d.AddDays(1))
             days[d] = new DayInfo { Date = d };
 
-        foreach (var entry in data.Entries)
+        foreach (var entry in data.AllBookings())
             foreach (var (nominal, actual) in entry.Occurrences(begin, to))
             {
                 var item = new DayItem(entry, actual, nominal);
@@ -142,6 +152,12 @@ public static class Recurring
 {
     public static decimal PerMonth(IEnumerable<Entry> entries, DateOnly month) =>
         entries.Where(e => !e.IsOneTime && e.IsActiveInMonth(month)).Sum(e => e.Amount / e.IntervalMonths);
+
+    /// <summary>Planmäßige Kreditraten im angegebenen Monat (ohne Sondertilgungen und Ablösung).</summary>
+    public static decimal LoanRates(IEnumerable<Loan> loans, DateOnly month) => loans
+        .SelectMany(LoanSchedule.Build)
+        .Where(r => r.Kind == LoanRowKind.Rate && r.Nominal.Year == month.Year && r.Nominal.Month == month.Month)
+        .Sum(r => r.Payment);
 
     /// <summary>Betrag im angegebenen Monat – oder, falls dort nichts läuft, im ersten späteren Monat (max. 24 Monate).</summary>
     public static (decimal Amount, DateOnly Month) CurrentOrNext(IEnumerable<Entry> entries, DateOnly month)

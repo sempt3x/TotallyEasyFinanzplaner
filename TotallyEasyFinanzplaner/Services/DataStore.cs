@@ -128,7 +128,8 @@ public static class DataStore
         }
 
         var doc = new PlanDocument { FilePath = path, Data = data, Key = key };
-        if (data.Version < FinanceData.CurrentVersion) Migrate(doc);
+        // Version 4 bringt nur Kreditpläne dazu – Pläne der Version 3 brauchen keine Umstellung
+        if (data.Version < FinanceData.BaseVersion) Migrate(doc);
         return doc;
     }
 
@@ -144,6 +145,8 @@ public static class DataStore
     {
         var folder = IOPath.GetDirectoryName(doc.FilePath)!;
         Directory.CreateDirectory(folder);
+        // Mit Kreditplänen Version 4 – ältere Programmversionen lehnen die Datei dann ab, statt die Kredite zu verlieren
+        doc.Data.Version = doc.Data.Loans.Count > 0 ? FinanceData.CurrentVersion : FinanceData.BaseVersion;
         var bytes = JsonSerializer.SerializeToUtf8Bytes(doc.Data, Options);
         if (doc.Key is { } key) bytes = PlanCrypto.Encrypt(bytes, key);
 
@@ -245,12 +248,11 @@ public static class DataStore
                 // Zahlungsweg ist reine Anzeige: Unbekanntes oder "Konto" wie "nichts gewählt" behandeln
                 if (e.Payment is { } pay && (!Enum.IsDefined(pay) || pay == PaymentMethod.Konto)) e.Payment = null;
                 e.Amount = Math.Abs(e.Amount);
-                // Ältere Dateien: verschobenen Tag → planmäßigen Termin (mit den Feiertagen dieses Plans rechnen)
-                var activeState = BusinessDays.State;
-                BusinessDays.State = data.HolidayState;
-                try { e.NormalizeSkippedDates(); }
-                finally { BusinessDays.State = activeState; }
+                // Ältere Dateien: verschobenen Tag → planmäßigen Termin (mit den Feiertagen dieses Plans rechnen –
+                // nur auf diesem Thread, das Hauptfenster rechnet währenddessen mit dem geöffneten Plan weiter)
+                using (BusinessDays.Use(data.HolidayState)) e.NormalizeSkippedDates();
             }
+            ValidateLoans(data);
             return data;
         }
         catch (JsonException ex)
@@ -259,11 +261,49 @@ public static class DataStore
         }
     }
 
+    /// <summary>Kreditpläne prüfen – gleiche Grundsätze wie bei den Buchungen (Grenzen, Datumsbereich, unbekannte Werte).</summary>
+    private static void ValidateLoans(FinanceData data)
+    {
+        data.Loans.RemoveAll(l => l is null);
+        if (data.Loans.Count > Limits.MaxLoans)
+            throw new InvalidDataException($"Die Datei enthält mehr als {Limits.MaxLoans:N0} Kreditpläne.");
+
+        foreach (var l in data.Loans)
+        {
+            l.Name = Limits.Clip(l.Name, Limits.MaxTextLength) ?? "";
+            l.Lender = Limits.Clip(l.Lender, Limits.MaxTextLength);
+            l.Note = Limits.Clip(l.Note, Limits.MaxNoteLength);
+            l.SpecialPayments ??= [];
+            l.SpecialPayments.RemoveAll(p => p is null);
+
+            if (!Enum.IsDefined(l.Kind) || !Enum.IsDefined(l.Weekend))
+                throw new InvalidDataException($"Der Kreditplan „{l.Name}“ enthält eine unbekannte Art oder Wochenendregel.");
+            if (l.Payment is { } pay && (!Enum.IsDefined(pay) || pay == PaymentMethod.Konto)) l.Payment = null;
+            if (!Limits.IsValidDate(l.FirstRateDate) || l.PayoutDate is { } po && !Limits.IsValidDate(po)
+                || l.PayoffDate is { } off && !Limits.IsValidDate(off))
+                throw new InvalidDataException($"Der Kreditplan „{l.Name}“ enthält ein Datum außerhalb von {Limits.DateRangeText}.");
+            if (l.Amount <= 0 || l.Amount > Limits.MaxAmount || l.Rate <= 0 || l.Rate > Limits.MaxAmount
+                || l.PayoffAmount is { } pa && (pa < 0 || pa > Limits.MaxAmount))
+                throw new InvalidDataException($"Der Kreditplan „{l.Name}“ enthält einen unplausiblen Betrag.");
+            if (l.InterestRate is < 0 or > Limits.MaxInterestRate)
+                throw new InvalidDataException($"Der Zinssatz von „{l.Name}“ ist unplausibel ({l.InterestRate} %).");
+            if (l.SpecialPayments.Count > Limits.MaxSpecialPayments)
+                throw new InvalidDataException($"Der Kreditplan „{l.Name}“ hat zu viele Sondertilgungen.");
+            foreach (var p in l.SpecialPayments)
+            {
+                p.Note = Limits.Clip(p.Note, Limits.MaxTextLength);
+                if (!Limits.IsValidDate(p.Date) || p.Amount <= 0 || p.Amount > Limits.MaxAmount)
+                    throw new InvalidDataException($"Eine Sondertilgung von „{l.Name}“ ist ungültig.");
+            }
+            if (l.Kind != LoanKind.Kredit) l.PayoutDate = null;
+        }
+    }
+
     /// <summary>Dateiformat aktualisieren – vorher die alte Datei sichern.</summary>
     private static void Migrate(PlanDocument doc)
     {
         var data = doc.Data;
-        var backup = BackupPath(doc.FilePath, $"vor-v{FinanceData.CurrentVersion}");
+        var backup = BackupPath(doc.FilePath, $"vor-v{FinanceData.BaseVersion}");
         File.Copy(doc.FilePath, backup, overwrite: true);
         var notes = new List<string>();
 
@@ -282,7 +322,7 @@ public static class DataStore
                       (rest > 0 ? $", {rest} stehen unter \"{Texts.NoCategory}\"." : "."));
         }
 
-        data.Version = FinanceData.CurrentVersion;
+        data.Version = FinanceData.BaseVersion;
         Save(doc);
         doc.LoadInfo = "Die Daten wurden auf das neue Format umgestellt:\n\n" + string.Join("\n", notes) +
                        "\n\nBitte unter \"Buchungen\" prüfen und bei Bedarf im Bearbeiten-Dialog anpassen.\n\n" +

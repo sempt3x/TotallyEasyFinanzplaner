@@ -21,6 +21,12 @@ public static class Limits
     public const int MaxRecurringEntries = 1_000;
     public const int MaxSkippedDates = 10_000;
 
+    /// <summary>Kreditpläne pro Plan (jeder erzeugt bis zu <see cref="LoanSchedule.MaxRates"/> Zahlungen).</summary>
+    public const int MaxLoans = 100;
+    public const int MaxSpecialPayments = 500;
+    /// <summary>Höchster Sollzins in Prozent pro Jahr.</summary>
+    public const decimal MaxInterestRate = 100m;
+
     /// <summary>Bezeichnung, Arbeitgeber/Job und Kategorie (Zeichen).</summary>
     public const int MaxTextLength = 200;
     public const int MaxNoteLength = 2_000;
@@ -37,7 +43,13 @@ public static class Limits
     public static string StartDateRangeText => $"{MinStartDate:dd.MM.yyyy} bis {MaxDate:dd.MM.yyyy}";
 
     /// <summary>Kürzt zu lange Texte (nur Anzeige-Felder – ein Plan soll daran nicht scheitern).</summary>
-    public static string? Clip(string? s, int max) => s is { Length: var n } && n > max ? s[..max] : s;
+    /// <remarks>Schneidet nie zwischen den beiden Hälften eines Zeichens wie einem Emoji (Surrogatpaar).</remarks>
+    public static string? Clip(string? s, int max)
+    {
+        if (s is null || s.Length <= max) return s;
+        if (max > 0 && char.IsHighSurrogate(s[max - 1])) max--;
+        return s[..max];
+    }
 
     /// <summary>Größte Plandatei, die geöffnet wird (ein üblicher Plan hat wenige KB).</summary>
     public const long MaxFileBytes = 20 * 1024 * 1024;

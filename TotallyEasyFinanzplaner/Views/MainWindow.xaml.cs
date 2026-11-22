@@ -41,6 +41,8 @@ public partial class MainWindow : Window
     private DateOnly _month;     // immer der 1. des angezeigten Monats
     private DateOnly _selected;
     private SortedDictionary<DateOnly, DayInfo> _days = new();
+    /// <summary>Zeitraum, den <see cref="_days"/> abdeckt (beim Blättern wiederverwendet, solange er reicht).</summary>
+    private DateOnly _daysFrom = DateOnly.MaxValue, _daysTo = DateOnly.MinValue;
     private bool _suppressEvents;
     private bool _ready;
 
@@ -91,11 +93,13 @@ public partial class MainWindow : Window
         PageCalendar.Visibility = nav == NavCalendar ? Visibility.Visible : Visibility.Collapsed;
         PageEntries.Visibility = nav == NavEntries ? Visibility.Visible : Visibility.Collapsed;
         PageForecast.Visibility = nav == NavForecast ? Visibility.Visible : Visibility.Collapsed;
+        PageLoans.Visibility = nav == NavLoans ? Visibility.Visible : Visibility.Collapsed;
 
         (PageCrumb.Text, PageTitle.Text) =
             nav == NavDashboard ? ("Übersicht", "Dashboard") :
             nav == NavCalendar ? ("Übersicht", "Kalender") :
             nav == NavEntries ? ("Verwaltung", "Buchungen") :
+            nav == NavLoans ? ("Finanzierung", "Kredite & Raten") :
             ("Verwaltung", "Prognose");
         PageCrumb.Text = "Totally Easy Finanzplaner  /  " + PageCrumb.Text;
     }
@@ -139,6 +143,7 @@ public partial class MainWindow : Window
         ComputeForecast();
         ShowCalendar();
         RefreshEntries();
+        RefreshLoans();
         ShowDashboard();
         StatusCount.Text = $"{EntryCountText.Format(_data.Entries.Count)}  ·  Startsaldo {Money.Format(_data.StartBalance)} am {_data.StartDate:dd.MM.yyyy}";
     }
@@ -162,11 +167,35 @@ public partial class MainWindow : Window
     /// Berechnet die Tagesprognose einmal für alles, was angezeigt wird: Kalender, Prognose-Seite und Dashboard.
     /// Gerechnet wird ohnehin ab dem Stichtag – ein gemeinsamer Zeitraum kostet kaum mehr als einer.
     /// </summary>
-    private void ComputeForecast()
+    private void ComputeForecast() => ComputeForecast(extraMonths: 0);
+
+    /// <param name="extraMonths">Zusätzlich im Voraus rechnen, damit beim Weiterblättern nicht jeder Monat neu rechnet.</param>
+    private void ComputeForecast(int extraMonths)
+    {
+        var (from, to) = NeededRange();
+        to = to.AddMonths(extraMonths);
+        _days = Forecast.Compute(_data, from, to);
+        _daysFrom = from < _data.StartDate ? from : _data.StartDate;
+        _daysTo = to;
+    }
+
+    /// <summary>Tage, die Kalender, Prognose-Seite und Dashboard gerade brauchen.</summary>
+    private (DateOnly From, DateOnly To) NeededRange()
     {
         var (from, to, _, _) = CalendarRange();
         var yesterday = Today.AddDays(-1);
-        _days = Forecast.Compute(_data, from < yesterday ? from : yesterday, to > DashboardHorizon ? to : DashboardHorizon);
+        return (from < yesterday ? from : yesterday, to > DashboardHorizon ? to : DashboardHorizon);
+    }
+
+    /// <summary>
+    /// Nach dem Blättern (Daten unverändert): Die vorhandene Prognose wiederverwenden, solange sie den Zeitraum
+    /// abdeckt. Gerechnet wird immer ab dem Stichtag – sonst würde jeder Monatswechsel alles neu berechnen.
+    /// </summary>
+    private void EnsureForecast()
+    {
+        var (from, to) = NeededRange();
+        if (from >= _daysFrom && to <= _daysTo) return;
+        ComputeForecast(extraMonths: to > _daysTo ? 12 : 0);
     }
 
     private void ShowDashboard()
@@ -252,6 +281,17 @@ public partial class MainWindow : Window
         var rows = expenses
             .GroupBy(e => e.CategoryName)
             .Select(g => (Name: g.Key, Amount: Recurring.PerMonth(g, from)))
+            .ToList();
+        // Kreditraten zählen zu "Kredite & Finanzierung"
+        const string loanCategory = "Kredite & Finanzierung";
+        var loanRates = Recurring.LoanRates(_data.Loans, from);
+        if (loanRates > 0)
+        {
+            int i = rows.FindIndex(r => r.Name == loanCategory);
+            if (i >= 0) rows[i] = (loanCategory, rows[i].Amount + loanRates);
+            else rows.Add((loanCategory, loanRates));
+        }
+        rows = rows
             .Where(x => x.Amount > 0)
             .OrderByDescending(x => x.Amount)
             .ToList();
@@ -279,7 +319,7 @@ public partial class MainWindow : Window
     private (decimal Salary, decimal OtherIncome, decimal Expense) RecurringPerMonth(DateOnly month) =>
         (Recurring.PerMonth(_data.Entries.Where(e => e.Type == EntryType.Gehalt), month),
          Recurring.PerMonth(_data.Entries.Where(e => e.Type == EntryType.Einnahme), month),
-         Recurring.PerMonth(_data.Entries.Where(e => e.Type == EntryType.Ausgabe), month));
+         Recurring.PerMonth(_data.Entries.Where(e => e.Type == EntryType.Ausgabe), month) + Recurring.LoanRates(_data.Loans, month));
 
     /// <summary>Alle bisher verwendeten Arbeitgeber/Jobs (für die Auswahl im Dialog).</summary>
     private IEnumerable<string> KnownJobs => _data.Entries.Where(e => e.IsSalary && !string.IsNullOrWhiteSpace(e.Job)).Select(e => e.Job!.Trim());
@@ -495,8 +535,12 @@ public partial class MainWindow : Window
 
     private void ShowMonth(DateOnly month)
     {
-        _month = FirstOfMonth(month);
-        ComputeForecast(); // anderer Zeitraum – Daten unverändert, Dashboard bleibt
+        // Nur im gültigen Datumsbereich blättern – dahinter wäre jede Prognose nur länger (und ab 9999 ungültig)
+        var first = FirstOfMonth(Limits.MinDate);
+        var last = FirstOfMonth(Limits.MaxDate);
+        month = FirstOfMonth(month);
+        _month = month < first ? first : month > last ? last : month;
+        EnsureForecast(); // Daten unverändert – vorhandene Prognose reicht meist, Dashboard bleibt
         ShowCalendar();
     }
 
@@ -547,6 +591,7 @@ public partial class MainWindow : Window
                 Key.D2 or Key.NumPad2 => NavCalendar,
                 Key.D3 or Key.NumPad3 => NavEntries,
                 Key.D4 or Key.NumPad4 => NavForecast,
+                Key.D5 or Key.NumPad5 => NavLoans,
                 _ => null,
             };
             if (nav is not null) { ShowPage(nav); e.Handled = true; return; }
@@ -683,28 +728,10 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
-        // Textfelder quoten. Beginnt ein Text mit = + - @ (oder Tab/Zeilenumbruch), würde Excel ihn als Formel
-        // ausführen (CSV-Injection) – ein vorangestelltes ' macht ihn zu reinem Text.
-        static string Q(string? s)
-        {
-            s ??= "";
-            if (s.Length > 0 && s[0] is '=' or '+' or '-' or '@' or '\t' or '\r' or '\n') s = "'" + s;
-            return "\"" + s.Replace("\"", "\"\"") + "\"";
-        }
-        var sb = new StringBuilder();
-        sb.AppendLine("Art;Arbeitgeber/Job;Kategorie;Bezeichnung;Betrag;Rhythmus;Fällig;Gültig ab;Endet am;Wochenende;Notiz;Bezahlt über");
-        foreach (var x in _data.Entries.OrderByDescending(x => x.Type).ThenBy(x => x.Job).ThenBy(x => x.IsOneTime).ThenBy(x => x.Name))
-        {
-            sb.AppendJoin(';',
-                Q(x.TypeText), Q(x.IsSalary ? x.JobName : ""), Q(x.Type == EntryType.Ausgabe ? x.CategoryName : ""), Q(x.Name), x.SignedAmount.ToString("0.00", Money.De), Q(x.RecurrenceText),
-                Q(x.DueText), x.StartDate.ToString("dd.MM.yyyy"), x.EndDate?.ToString("dd.MM.yyyy") ?? "",
-                Q(Texts.Of(x.Weekend)), Q(x.Note), Q(x.PaymentText));
-            sb.AppendLine();
-        }
-
         try
         {
-            File.WriteAllText(dialog.FileName, sb.ToString(), new UTF8Encoding(true)); // BOM, damit Excel Umlaute erkennt
+            // Buchungen und Kreditpläne; BOM, damit Excel Umlaute erkennt
+            File.WriteAllText(dialog.FileName, CsvExport.Build(_data, Today), new UTF8Encoding(true));
             StatusSaved.Text = $"Exportiert: {Path.GetFileName(dialog.FileName)}";
         }
         catch (Exception ex)
@@ -778,17 +805,38 @@ public partial class MainWindow : Window
 
     private void EditDayItem_Click(object sender, RoutedEventArgs e)
     {
-        if (DayList.SelectedItem is DayItem item) EditEntry(item.Entry);
+        if (DayList.SelectedItem is not DayItem item) return;
+        if (item.Loan is { } loan) ShowLoan(loan); // Kreditraten werden im Kreditplan bearbeitet
+        else EditEntry(item.Entry);
     }
 
     private void DeleteDayItem_Click(object sender, RoutedEventArgs e)
     {
-        if (DayList.SelectedItem is DayItem item) DeleteEntry(item.Entry);
+        if (DayList.SelectedItem is not DayItem item) return;
+        if (item.Loan is { } loan) ExplainLoanItem(loan, "gelöscht");
+        else DeleteEntry(item.Entry);
+    }
+
+    /// <summary>Zahlungen aus Kreditplänen lassen sich nicht einzeln löschen/aussetzen – dafür gibt es Sondertilgung und Ablösung.</summary>
+    private void ExplainLoanItem(Loan loan, string action)
+    {
+        if (MessageDialog.Show(this,
+                $"Diese Zahlung gehört zum {(loan.Kind == LoanKind.Kredit ? "Kredit" : "Ratenplan")} „{loan.Name}“ " +
+                $"und kann nicht einzeln {action} werden.\n\n" +
+                "Unter „Kredite & Raten“ lassen sich der Plan ändern, Sondertilgungen eintragen oder der Restbetrag " +
+                "vorzeitig auf einmal zahlen.\n\nJetzt dorthin wechseln?",
+                "Zahlung aus Kreditplan", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            ShowLoan(loan);
     }
 
     private void SkipDayItem_Click(object sender, RoutedEventArgs e)
     {
         if (DayList.SelectedItem is not DayItem item) return;
+        if (item.Loan is { } loan)
+        {
+            ExplainLoanItem(loan, "ausgesetzt");
+            return;
+        }
         if (item.IsOneTime)
         {
             MessageDialog.Show(this, "Einmalzahlungen können nicht ausgesetzt werden – bitte löschen.", "Hinweis",

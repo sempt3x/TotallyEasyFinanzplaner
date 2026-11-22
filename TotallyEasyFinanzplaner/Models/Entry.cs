@@ -51,6 +51,10 @@ public sealed class Entry
     /// <summary>Zahlungsweg. Null (ältere Pläne, nichts gewählt) = direkt über das Konto; wird dann nicht gespeichert.</summary>
     public PaymentMethod? Payment { get; set; }
 
+    /// <summary>Gesetzt bei Zahlungen aus einem Kreditplan (nicht gespeichert, siehe <see cref="LoanSchedule.ToEntries"/>).</summary>
+    [JsonIgnore] public Loan? Loan { get; init; }
+    [JsonIgnore] public LoanRow? LoanRow { get; init; }
+
     [JsonIgnore] public bool IsIncome => Type != EntryType.Ausgabe;
     [JsonIgnore] public bool IsSalary => Type == EntryType.Gehalt;
     [JsonIgnore] public string JobName => string.IsNullOrWhiteSpace(Job) ? "Ohne Zuordnung" : Job.Trim();

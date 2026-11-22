@@ -54,6 +54,10 @@ Gehalt? Was bleibt jeden Monat übrig?
 - **Zahlungsweg mit Symbol:** Bankkonto (Standard), Kreditkarte, PayPal, Klarna, Amazon, Ratenkauf, Apple Pay oder Google Pay. Ein kleines Symbol vor jeder Buchung zeigt, worüber bezahlt wurde; abgebucht wird weiterhin vom Konto.
 - **Einzelne Termine aussetzen**, ohne die ganze Serie zu löschen
 - **Ausgaben-Kategorien:** 13 Standardkategorien plus eigene. Anlegen, umbenennen, zusammenführen und löschen geht in einem Dialog.
+- **Kredite & Ratenzahlungen:** eigener Menüpunkt mit Tilgungsplan. Betrag, Sollzins und monatliche Rate (oder Anzahl der Raten) eintragen, alle Raten erscheinen automatisch in Kalender und Prognose.
+  - **Sondertilgungen** verringern die Restschuld sofort, der Kredit endet früher.
+  - **Vorzeitig ablösen:** den Restbetrag an einem bestimmten Tag auf einmal zahlen (berechnet oder Betrag laut Bank).
+  - **Ratenzahlung** für Käufe in Raten, z. B. über Klarna, PayPal, Amazon oder den Händler.
 
 ### Auswertung
 - **Dashboard:** Kontostand heute, Prognose zum Monatsende, Tiefststand der nächsten 12 Monate, laufende Bilanz pro Monat
@@ -66,7 +70,7 @@ Gehalt? Was bleibt jeden Monat übrig?
 ### Komfort
 - **Mehrere Finanzpläne** (z. B. privat und gemeinsam). Zuletzt geöffnete Pläne stehen im Menü, Dateien lassen sich per Drag & Drop öffnen.
 - **Automatisches Speichern** nach jeder Änderung. Gespeichert wird atomar, ein Abbruch kann die Datei also nicht beschädigen.
-- **CSV-Export** für Excel (UTF-8 mit BOM, Semikolon-getrennt, geschützt gegen Formel-Injection)
+- **CSV-Export** für Excel (UTF-8 mit BOM, Semikolon-getrennt, geschützt gegen Formel-Injection), samt Kreditplänen
 - **Helles und dunkles Design**, wahlweise automatisch passend zu Windows
 - **Portabler Betrieb** vom USB-Stick möglich ([Details](#portabler-modus))
 
@@ -176,7 +180,7 @@ Tagesdetails lässt du einen einzelnen Termin einer Serie entfallen, etwa eine R
 | <kbd>Strg</kbd> + <kbd>O</kbd> | Finanzplan öffnen |
 | <kbd>Strg</kbd> + <kbd>S</kbd> | Speichern |
 | <kbd>Strg</kbd> + <kbd>Umschalt</kbd> + <kbd>S</kbd> | Speichern unter … |
-| <kbd>Strg</kbd> + <kbd>1</kbd> … <kbd>4</kbd> | Dashboard · Kalender · Buchungen · Prognose |
+| <kbd>Strg</kbd> + <kbd>1</kbd> … <kbd>5</kbd> | Dashboard · Kalender · Buchungen · Prognose · Kredite & Raten |
 | <kbd>Strg</kbd> + <kbd>F</kbd> | Buchungen durchsuchen |
 | <kbd>Strg</kbd> + <kbd>Umschalt</kbd> + <kbd>D</kbd> | Hell/Dunkel umschalten |
 | <kbd>Bild ↑</kbd> / <kbd>Bild ↓</kbd> · Mausrad im Kalender | Vorheriger / nächster Monat |
@@ -196,7 +200,7 @@ Tagesdetails lässt du einen einzelnen Termin einer Serie entfallen, etwa eine R
   (`<Name>.vor-v3-<Datum>.<Endung>`). Ist der Standardplan unlesbar, wird er als
   `<Name>.defekt-<Datum>.json` gesichert, bevor das Programm mit leeren Daten startet. Andere Pläne werden in
   diesem Fall gar nicht erst geöffnet.
-- **CSV-Export:** über **Daten → CSV-Export** in der Seitenleiste. Exportiert alle Buchungen für Excel.
+- **CSV-Export:** über **Daten → CSV-Export** in der Seitenleiste. Exportiert alle Buchungen und Kreditpläne für Excel.
 
 ### Portabler Modus
 
@@ -226,17 +230,18 @@ Beim Verschlüsseln bietet das Programm an, ältere unverschlüsselte Sicherungs
 ```
 TotallyEasyFinanzplaner/
 ├── App.xaml(.cs)            Programmstart, Kultur de-DE, globale Fehlerbehandlung
-├── Models/                  Datenmodell: Entry (Buchung + Terminberechnung), FinanceData, Texte & Beträge
+├── Models/                  Datenmodell: Entry (Buchung + Terminberechnung), Loan (Kreditplan + Tilgung), FinanceData, Texte & Beträge
 ├── Services/
 │   ├── DataStore.cs         Laden/Speichern, Formatumstellung, Sicherungen
 │   ├── PlanCrypto.cs        AES-256-GCM + PBKDF2
 │   ├── Forecast.cs          Tagesgenaue Saldenberechnung, Monatsstatistik
+│   ├── CsvExport.cs         CSV-Export (Buchungen und Kreditpläne)
 │   ├── AppSettings.cs       Einstellungen, zuletzt geöffnete Pläne
 │   ├── ThemeManager.cs      Hell/Dunkel, Titelleiste
 │   └── SeedData.cs          Beispieldaten für den ersten Start
 ├── Views/
-│   ├── MainWindow.*         Hauptfenster (Dashboard, Kalender, Buchungen, Prognose, Planverwaltung)
-│   ├── Dialogs/             Buchung, Kategorien, Passwort, Neuer Plan, Meldungen
+│   ├── MainWindow.*         Hauptfenster (Dashboard, Kalender, Buchungen, Prognose, Kredite & Raten, Planverwaltung)
+│   ├── Dialogs/             Buchung, Kreditplan, Sondertilgung/Ablösung, Kategorien, Passwort, Neuer Plan, Meldungen
 │   ├── Controls/            Saldendiagramm, Passwortfelder mit Stärkeanzeige
 │   └── Support/             Anzeige-Modelle und Converter
 ├── Resources/               Farbpaletten (hell/dunkel) und Styles

@@ -48,13 +48,44 @@
 
     <Style x:Key="MutedCellText" TargetType="TextBlock" BasedOn="{StaticResource CellText}">
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Style.Triggers>
+            <!-- In der ausgewählten (blau hinterlegten) Zeile Schriftfarbe der Auswahl – Rot/Grün/Grau wären dort kaum lesbar -->
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Kleine graue Zusatzzeile in Tabellenzellen (z. B. Buchungsmonate) – in der ausgewählten Zeile lesbar -->
+    <Style x:Key="MutedCellSubText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Style.Triggers>
+            <!-- In der ausgewählten (blau hinterlegten) Zeile Schriftfarbe der Auswahl – Rot/Grün/Grau wären dort kaum lesbar -->
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="IncomeNumCell" TargetType="TextBlock" BasedOn="{StaticResource NumCell}">
         <Setter Property="Foreground" Value="{DynamicResource IncomeBrush}"/>
+        <Style.Triggers>
+            <!-- In der ausgewählten (blau hinterlegten) Zeile Schriftfarbe der Auswahl – Rot/Grün/Grau wären dort kaum lesbar -->
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ExpenseNumCell" TargetType="TextBlock" BasedOn="{StaticResource NumCell}">
         <Setter Property="Foreground" Value="{DynamicResource ExpenseBrush}"/>
+        <Style.Triggers>
+            <!-- In der ausgewählten (blau hinterlegten) Zeile Schriftfarbe der Auswahl – Rot/Grün/Grau wären dort kaum lesbar -->
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

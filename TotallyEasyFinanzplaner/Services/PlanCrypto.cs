@@ -49,6 +49,9 @@ public static class PlanCrypto
     /// <summary>Empfehlung von OWASP (2023) für PBKDF2-HMAC-SHA256.</summary>
     public const int DefaultIterations = 600_000;
 
+    /// <summary>Beim Öffnen akzeptierter Bereich (Spielraum für spätere Erhöhungen, etwa 0,7 s je Versuch).</summary>
+    private const int MinIterations = 100_000, MaxIterations = 2_000_000;
+
     /// <summary>Erkennt eine verschlüsselte Datei an ihrer Kennung.</summary>
     public static bool IsEncrypted(ReadOnlySpan<byte> data) => data.StartsWith(Magic);
 
@@ -98,7 +101,8 @@ public static class PlanCrypto
                                            "Die Datei wurde vermutlich mit einer neueren Programmversion erstellt.");
 
         int iterations = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(9));
-        if (iterations is < 100_000 or > 10_000_000)
+        // Obergrenze: Eine manipulierte Datei könnte sonst jeden Passwortversuch sekundenlang dauern lassen
+        if (iterations is < MinIterations or > MaxIterations)
             throw new InvalidDataException("Der Dateikopf ist beschädigt.");
 
         var salt = data.AsSpan(13, SaltSize).ToArray();

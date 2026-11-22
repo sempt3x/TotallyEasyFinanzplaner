@@ -3,11 +3,12 @@
 
     Aufbau
       Navigation (links)    Logo · aktueller Finanzplan · Seiten · Darstellung · Daten
-      Inhalt (rechts)       Kopfzeile mit Startsaldo · Statusleiste · vier Seiten:
+      Inhalt (rechts)       Kopfzeile mit Startsaldo · Statusleiste · fünf Seiten:
                               PageDashboard   Kennzahlen, Kontoverlauf, nächste Buchungen, Ausgaben nach Kategorie
                               PageCalendar    Monatskalender mit Tagesdetails
                               PageEntries     Gehälter, sonstige Einnahmen, Ausgaben, monatliche Bilanz
                               PageForecast    Saldenverlauf und Monatsübersicht
+                              PageLoans       Kredite und Ratenzahlungen mit Tilgungsplan
 
     Allgemeine Styles liegen in Resources/Styles/*.xaml. Hier stehen nur Vorlagen, die es nur in diesem Fenster gibt
     oder die Event-Handler aus MainWindow.xaml.cs verwenden.
@@ -164,6 +165,9 @@
                 <DataTrigger Binding="{Binding IsIncome}" Value="True">
                     <Setter TargetName="T" Property="Foreground" Value="{DynamicResource IncomeBrush}"/>
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                    <Setter TargetName="T" Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -199,8 +203,8 @@
         <DataTemplate x:Key="RhythmCell">
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding RecurrenceText}" Style="{StaticResource CellText}"/>
-                <TextBlock x:Name="Months" Text="{Binding MonthsText}" FontSize="10.5" TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource MutedBrush}" ToolTip="{Binding MonthsText}"/>
+                <TextBlock x:Name="Months" Text="{Binding MonthsText}" Style="{StaticResource MutedCellSubText}" FontSize="10.5"
+                           ToolTip="{Binding MonthsText}"/>
             </StackPanel>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding MonthsText}" Value="">
@@ -284,7 +288,7 @@
 
                     <TextBlock Style="{StaticResource NavHeader}" Text="DATEN"/>
                     <Button Style="{StaticResource BrandMenuButton}" local:Ui.Icon="&#xEDE1;" Content="CSV-Export"
-                            ToolTip="Alle Einträge als CSV (Excel) exportieren" Click="ExportCsv_Click"/>
+                            ToolTip="Alle Buchungen und Kreditpläne als CSV (Excel) exportieren" Click="ExportCsv_Click"/>
                     <Button Style="{StaticResource BrandMenuButton}" local:Ui.Icon="&#xE838;" Content="Speicherort"
                             ToolTip="Ordner des aktuellen Finanzplans im Explorer öffnen" Click="OpenFolder_Click"/>
                 </StackPanel>
@@ -302,6 +306,11 @@
                                  ToolTip="Strg+3" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavForecast" Style="{StaticResource NavItem}" local:Ui.Icon="&#xE9D9;" Content="Prognose"
                                  ToolTip="Strg+4" Checked="Nav_Checked"/>
+
+                    <TextBlock Style="{StaticResource NavHeader}" Text="FINANZIERUNG" Margin="24,20,0,6"/>
+                    <RadioButton x:Name="NavLoans" Style="{StaticResource NavItem}" local:Ui.Icon="&#xE825;" Content="Kredite &amp; Raten"
+                                 ToolTip="Kreditpläne und Ratenzahlungen mit Tilgungsplan, Sondertilgung und Ablösung (Strg+5)"
+                                 Checked="Nav_Checked"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -364,7 +373,7 @@
                 </DockPanel>
             </Border>
 
-            <!-- Die vier Seiten liegen übereinander; ShowPage() blendet jeweils eine ein -->
+            <!-- Die fünf Seiten liegen übereinander; ShowPage() blendet jeweils eine ein -->
             <Grid Margin="28,22,28,22">
 
                 <!-- ============================================================================ -->
@@ -1145,6 +1154,215 @@
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>
+                </Grid>
+
+                <!-- ============================================================================ -->
+                <!-- Seite: Kredite & Raten                                                       -->
+                <!-- ============================================================================ -->
+                <Grid x:Name="PageLoans" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Werkzeugleiste -->
+                        <RowDefinition Height="*"/>    <!-- Liste und Tilgungsplan -->
+                    </Grid.RowDefinitions>
+
+                    <!-- ==================================================== Werkzeugleiste -->
+                    <DockPanel Margin="0,0,0,16" LastChildFill="False">
+                        <Button DockPanel.Dock="Left" Style="{StaticResource PrimaryIconButton}" local:Ui.Icon="&#xE710;"
+                                Content="Kredit" Tag="Kredit" ToolTip="Neuen Kredit mit Betrag, Zinssatz und monatlicher Rate anlegen"
+                                Click="NewLoan_Click"/>
+                        <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE710;"
+                                Content="Ratenzahlung" Tag="Ratenzahlung"
+                                ToolTip="Kauf in Raten anlegen (z. B. über Klarna, PayPal, Amazon oder den Händler)"
+                                Click="NewLoan_Click"/>
+                        <Rectangle DockPanel.Dock="Left" Style="{StaticResource ToolbarSeparator}"/>
+                        <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE70F;"
+                                Content="Bearbeiten" ToolTip="Ausgewählten Kreditplan bearbeiten (oder Doppelklick)" Click="EditLoan_Click"/>
+                        <Button DockPanel.Dock="Left" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE74D;"
+                                Content="Löschen" ToolTip="Ausgewählten Kreditplan samt aller Raten löschen" Click="DeleteLoan_Click"/>
+
+                        <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                            <TextBlock x:Name="LoansTotal" Style="{StaticResource LedgerTotal}" Foreground="{DynamicResource ExpenseBrush}"/>
+                            <TextBlock x:Name="LoansTotalSub" Style="{StaticResource MutedText}" HorizontalAlignment="Right"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="420"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="1.35*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- ================================================ Liste der Kreditpläne -->
+                        <Border Style="{StaticResource Card}">
+                            <DockPanel>
+                                <Border Style="{StaticResource CardHeader}">
+                                    <DockPanel>
+                                        <Border Style="{StaticResource IconTile}" Background="{DynamicResource ExpenseSoftBrush}" Margin="0,0,12,0">
+                                            <TextBlock Style="{StaticResource IconTileGlyph}" Text="&#xE825;" Foreground="{DynamicResource ExpenseBrush}"/>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Style="{StaticResource CardTitle}" Text="Kredite &amp; Ratenzahlungen"/>
+                                            <TextBlock x:Name="LoansCount" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <Grid>
+                                    <TextBlock x:Name="LoansEmpty" Margin="18,14" TextWrapping="Wrap" Visibility="Collapsed"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Text="Noch keine Kredite oder Ratenzahlungen. Mit „+ Kredit“ bzw. „+ Ratenzahlung“ Betrag, Zinssatz und Rate eintragen – alle Raten werden automatisch im Kalender gebucht."/>
+                                    <DataGrid x:Name="LoanGrid" Style="{StaticResource LedgerGrid}" Margin="6,0,6,6"
+                                              RowStyle="{StaticResource EntriesRowStyle}"
+                                              SelectionChanged="LoanGrid_SelectionChanged" MouseDoubleClick="EditLoan_Click">
+                                        <DataGrid.Columns>
+                                            <DataGridTemplateColumn Header="Bezeichnung" SortMemberPath="Name" Width="*" MinWidth="150">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <DockPanel VerticalAlignment="Center" Margin="0,5">
+                                                            <local:PaymentIcon DockPanel.Dock="Left" Method="{Binding Payment}" Size="14" Margin="0,0,7,0"
+                                                                               VerticalAlignment="Top"/>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}" Style="{StaticResource NameCellText}" ToolTip="{Binding Name}"/>
+                                                                <TextBlock Text="{Binding SubText}" Style="{StaticResource MutedCellSubText}"/>
+                                                                <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Height="4" MinHeight="4"
+                                                                             Margin="0,5,0,0" Foreground="{DynamicResource IncomeBrush}"
+                                                                             ToolTip="Anteil bereits getilgt"/>
+                                                            </StackPanel>
+                                                        </DockPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn Header="Rate" Binding="{Binding RateText}" SortMemberPath="Loan.Rate" Width="104"
+                                                                ElementStyle="{StaticResource ExpenseNumCell}"/>
+                                            <DataGridTextColumn Header="Restschuld" Binding="{Binding RemainingText}" SortMemberPath="Remaining" Width="118"
+                                                                ElementStyle="{StaticResource NumCell}"/>
+                                            <DataGridTextColumn Header="Ende" Binding="{Binding EndText}" SortMemberPath="LastPayment" Width="70"
+                                                                ElementStyle="{StaticResource MutedCellText}"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- ================================================ Tilgungsplan des gewählten Kredits -->
+                        <Border Grid.Column="2" Style="{StaticResource Card}">
+                            <Grid>
+                                <TextBlock x:Name="LoanDetailEmpty" Margin="22,18" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}"
+                                           Text="Links einen Kredit bzw. eine Ratenzahlung auswählen, um Tilgungsplan, Sondertilgungen und Ablösung zu sehen."/>
+                                <DockPanel x:Name="LoanDetail" Visibility="Collapsed">
+                                    <!-- Kopf: Name, Art, Aktionen -->
+                                    <Border Style="{StaticResource CardHeader}">
+                                        <DockPanel>
+                                            <StackPanel Style="{StaticResource CardActions}" Margin="12,0,0,0">
+                                                <Button Style="{StaticResource IconButton}" local:Ui.Icon="&#xE710;" Content="Sondertilgung"
+                                                        ToolTip="Zusätzliche Zahlung eintragen – verringert die Restschuld sofort" Click="AddSpecialPayment_Click"/>
+                                                <Button x:Name="PayoffButton" Style="{StaticResource IconButton}" local:Ui.Icon="&#xE73E;"
+                                                        Content="Vorzeitig ablösen" Margin="0"
+                                                        ToolTip="Restbetrag an einem bestimmten Tag auf einmal zurückzahlen" Click="Payoff_Click"/>
+                                            </StackPanel>
+                                            <Border Style="{StaticResource IconTile}" Background="{DynamicResource ExpenseSoftBrush}" Margin="0,0,12,0">
+                                                <TextBlock x:Name="LoanDetailGlyph" Style="{StaticResource IconTileGlyph}" Text="&#xE825;"
+                                                           Foreground="{DynamicResource ExpenseBrush}"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock x:Name="LoanDetailTitle" Style="{StaticResource CardTitle}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock x:Name="LoanDetailSub" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+
+                                    <!-- Kennzahlen -->
+                                    <UniformGrid DockPanel.Dock="Top" Columns="4" Margin="18,14,18,4">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource StatLabel}" Text="RESTSCHULD HEUTE"/>
+                                            <TextBlock x:Name="LoanStatRemaining" Style="{StaticResource MonthStatValue}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource StatLabel}" Text="BEREITS GETILGT"/>
+                                            <TextBlock x:Name="LoanStatPaid" Style="{StaticResource MonthStatValue}" Foreground="{DynamicResource IncomeBrush}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource StatLabel}" Text="ZINSEN GESAMT"/>
+                                            <TextBlock x:Name="LoanStatInterest" Style="{StaticResource MonthStatValue}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock x:Name="LoanStatEndLabel" Style="{StaticResource StatLabel}" Text="LETZTE ZAHLUNG"/>
+                                            <TextBlock x:Name="LoanStatEnd" Style="{StaticResource MonthStatValue}"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+
+                                    <!-- Hinweis zur vorzeitigen Ablösung -->
+                                    <Border x:Name="LoanPayoffBox" DockPanel.Dock="Top" Style="{StaticResource InfoBox}"
+                                            Background="{DynamicResource OneTimeSoftBrush}" Margin="18,10,18,0" Padding="12,8" Visibility="Collapsed">
+                                        <DockPanel>
+                                            <Button DockPanel.Dock="Right" Content="Ablösung aufheben" Margin="10,0,0,0" Click="RemovePayoff_Click"/>
+                                            <TextBlock x:Name="LoanPayoffText" Style="{StaticResource InfoText}" VerticalAlignment="Center"/>
+                                        </DockPanel>
+                                    </Border>
+
+                                    <!-- Unten: Erläuterung und Sondertilgung entfernen -->
+                                    <DockPanel DockPanel.Dock="Bottom" Margin="18,0,18,12" LastChildFill="False">
+                                        <Button x:Name="RemoveSpecialButton" DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                                                local:Ui.Icon="&#xE74D;" Content="Sondertilgung entfernen" Margin="0" IsEnabled="False"
+                                                ToolTip="Ausgewählte Sondertilgung aus dem Plan entfernen" Click="RemoveSpecialPayment_Click"/>
+                                        <TextBlock Style="{StaticResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                                   Text="Zinsen monatlich auf die Restschuld · Vergangene Zahlungen blass · Doppelklick auf eine Sondertilgung ändert sie."/>
+                                    </DockPanel>
+
+                                    <DataGrid x:Name="ScheduleGrid" Style="{StaticResource LedgerGrid}" Margin="6,10,6,8" CanUserSortColumns="False"
+                                              RowStyle="{StaticResource EntriesRowStyle}"
+                                              SelectionChanged="ScheduleGrid_SelectionChanged" MouseDoubleClick="ScheduleGrid_MouseDoubleClick">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Nr." Binding="{Binding NumberText}" Width="48" ElementStyle="{StaticResource MutedCellText}"/>
+                                            <DataGridTextColumn Header="Datum" Binding="{Binding DateText}" Width="98" ElementStyle="{StaticResource CellText}"/>
+                                            <DataGridTextColumn Header="Art" Binding="{Binding KindText}" Width="*" MinWidth="110">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSpecial}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource OneTimeBrush}"/>
+                                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsPayout}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource IncomeBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="Zahlung" Binding="{Binding PaymentText}" Width="116">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource ExpenseNumCell}">
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsPayout}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource IncomeBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                                <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=DataGridCell}}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="Zinsen" Binding="{Binding InterestText}" Width="96" ElementStyle="{StaticResource NumCell}"/>
+                                            <DataGridTextColumn Header="Tilgung" Binding="{Binding PrincipalText}" Width="106" ElementStyle="{StaticResource NumCell}"/>
+                                            <DataGridTextColumn Header="Restschuld" Binding="{Binding RemainingText}" Width="118">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource NumCell}">
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </DockPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Grid>
         </DockPanel>

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace TotallyEasyFinanzplaner.Models;
 
 /// <summary>Bundesländer – bestimmen, welche gesetzlichen Feiertage gelten.</summary>
@@ -31,17 +33,21 @@ public static class Holidays
         _ => s.ToString(),
     };
 
-    private static readonly Dictionary<(int Year, FederalState? State), Dictionary<DateOnly, string>> Cache = [];
+    /// <summary>
+    /// Feiertage je Jahr und Bundesland. Threadsicher: Pläne mit Passwort werden im Hintergrund geladen,
+    /// während das Hauptfenster weiter Feiertage abfragt. Die Jahres-Tabellen werden nach dem Anlegen nur gelesen.
+    /// </summary>
+    private static readonly ConcurrentDictionary<(int Year, FederalState? State), Dictionary<DateOnly, string>> Cache = new();
 
     /// <summary>Name des Feiertags an diesem Tag oder null.</summary>
     public static string? Name(DateOnly d, FederalState? state)
     {
-        if (!Cache.TryGetValue((d.Year, state), out var year))
+        var year = Cache.GetOrAdd((d.Year, state), static key =>
         {
-            year = [];
-            foreach (var (date, name) in Compute(d.Year, state)) year.TryAdd(date, name);
-            Cache[(d.Year, state)] = year;
-        }
+            var table = new Dictionary<DateOnly, string>();
+            foreach (var (date, name) in Compute(key.Year, key.State)) table.TryAdd(date, name);
+            return table;
+        });
         return year.GetValueOrDefault(d);
     }
 
@@ -109,7 +115,40 @@ public static class Holidays
 /// </summary>
 public static class BusinessDays
 {
-    public static FederalState? State { get; set; }
+    private static volatile StateBox _global = new(null);
+    [ThreadStatic] private static StateBox? _override;
+
+    /// <summary>Unveränderlicher Halter, damit das (nullbare) Bundesland atomar gelesen und ersetzt wird.</summary>
+    internal sealed record StateBox(FederalState? Value);
+
+    /// <summary>
+    /// Bundesland für alle Berechnungen. Setzen gilt programmweit (geöffneter Plan); innerhalb von
+    /// <see cref="Use"/> gilt auf diesem Thread vorübergehend ein anderes.
+    /// </summary>
+    public static FederalState? State
+    {
+        get => (_override ?? _global).Value;
+        set => _global = new StateBox(value);
+    }
+
+    /// <summary>
+    /// Rechnet auf dem aktuellen Thread vorübergehend mit den Feiertagen von <paramref name="state"/>, ohne das
+    /// Bundesland des geöffneten Plans zu verändern (z. B. beim Laden eines anderen Plans im Hintergrund).
+    /// <code>using (BusinessDays.Use(plan.HolidayState)) { … }</code>
+    /// </summary>
+    public static Scope Use(FederalState? state)
+    {
+        var previous = _override;
+        _override = new StateBox(state);
+        return new Scope(previous);
+    }
+
+    public readonly struct Scope : IDisposable
+    {
+        private readonly StateBox? _previous;
+        internal Scope(StateBox? previous) => _previous = previous;
+        public void Dispose() => _override = _previous;
+    }
 
     public static bool IsWeekend(DateOnly d) => d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
