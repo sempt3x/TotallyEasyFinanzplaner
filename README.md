@@ -93,6 +93,12 @@ Gehalt? Was bleibt jeden Monat übrig?
     <td align="center"><b>Buchungen</b>: nach Job und Kategorie gruppiert</td>
     <td align="center"><b>Prognose</b>: 12 Monate im Überblick</td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/kredite.png" alt="Kredite &amp; Raten"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>Kredite &amp; Raten</b>: Tilgungsplan mit Zinsen, Sondertilgung und vorzeitiger Ablösung</td>
+  </tr>
 </table>
 
 <details>
@@ -107,6 +113,9 @@ Gehalt? Was bleibt jeden Monat übrig?
   <tr>
     <td width="50%"><img src="docs/screenshots/buchungen-dunkel.png" alt="Buchungen (dunkel)"></td>
     <td width="50%"><img src="docs/screenshots/prognose-dunkel.png" alt="Prognose (dunkel)"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/kredite-dunkel.png" alt="Kredite &amp; Raten (dunkel)"></td>
   </tr>
 </table>
 
